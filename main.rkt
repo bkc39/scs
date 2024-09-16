@@ -108,17 +108,18 @@
       (syntax-e id))
      "_")))
 
-(define-syntax-parser define-cstruct+kw-constructor
-  [(_ id:id ([fld type opt ...] ...) prop ...)
-   #:with type-name (datum->syntax #'id (trim-underscore #'id))
-   #:with default-constructor-name (format-id #'id "make-~a" #'type-name)
-   #:with kw-constructor-name (format-id #'id "new-~a" #'type-name)
-   #'(begin
-       (define-cstruct id ([fld type opt ...] ...) prop ...)
-       (define/kw-with-type-defaults (kw-constructor-name [fld type] ...)
-         (default-constructor-name
-           fld
-           ...)))])
+(define-syntax-parse-rule
+  (define-cstruct+kw-constructor id:id ([fld type opt ...] ...) prop ...)
+  #:with type-name (datum->syntax #'id (trim-underscore #'id))
+  #:with default-constructor-name (format-id #'id "make-~a" #'type-name)
+  #:with kw-constructor-name (format-id #'id "new-~a" #'type-name)
+  (begin
+    (define-cstruct id ([fld type opt ...] ...) prop ...)
+    (define/kw-with-type-defaults (kw-constructor-name [fld type] ...)
+      (default-constructor-name
+        fld
+        ...))))
+
 
 (begin-for-syntax
   (define ((id->keyword stx) field-id)
@@ -127,15 +128,16 @@
      (string->keyword
       (symbol->string (syntax-e field-id))))))
 
-(define-syntax-parser define/kw-with-type-defaults
-  [(_ (nm:id [fld*:id type] ...) e:expr e*:expr ...)
-   #:with (kw* ...) (stx-map (id->keyword #'nm) #'(fld* ...))
-   #'(define/fml
-       nm
-       ()
-       (e e* ...)
-       (kw* [fld* (default-value-for-ctype type)])
-       ...)])
+(define-syntax-parse-rule
+  (define/kw-with-type-defaults
+    (nm:id [fld*:id type] ...) e:expr e*:expr ...)
+  #:with (kw* ...) (stx-map (id->keyword #'nm) #'(fld* ...))
+  (define/fml
+    nm
+    ()
+    (e e* ...)
+    (kw* [fld* (default-value-for-ctype type)])
+    ...))
 
 (define-cstruct+kw-constructor _test
   ([A _int]
