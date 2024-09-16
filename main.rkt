@@ -6,12 +6,13 @@
          ffi/unsafe/define/conventions
          racket/list
          racket/match
+         syntax/parse/define
          (for-syntax ffi/unsafe
-                     syntax/parse
                      racket/base
                      racket/string
                      racket/syntax
-                     racket/struct-info))
+                     racket/struct-info
+                     syntax/stx))
 
 (define-ffi-definer define-scs
   (ffi-lib (build-path "/"
@@ -22,31 +23,31 @@
   #:make-c-id convention:hyphen->underscore)
 
 (define (default-value-for-ctype type)
-    (define layout
-      (ctype->layout type))
-    (define integer-types
-      (list 'int8 'uint8 'int16 'uint16 'int32 'uint32 'int64 'uint64))
-    (define string-types
-      (list 'bytes 'string/ucs-4 'string/utf-16))
-    (define pointer-types
-      (list 'pointer 'fpointer))
-    (cond
-      [(member layout integer-types)
-       0]
-      [(member layout string-types)
-       ""]
-      [(member layout '(float double))
-       0.0]
-      [(member layout pointer-types)
-       #f]
-      [(eq? layout 'bool)
-       #f]
-      [(eq? layout 'void)
-       (error "no default value for void")]
-      [else
-       (raise-argument-error 'default-value-for-type
-                             "unrecognized type layout"
-                             type)]))
+  (define layout
+    (ctype->layout type))
+  (define integer-types
+    (list 'int8 'uint8 'int16 'uint16 'int32 'uint32 'int64 'uint64))
+  (define string-types
+    (list 'bytes 'string/ucs-4 'string/utf-16))
+  (define pointer-types
+    (list 'pointer 'fpointer))
+  (cond
+    [(member layout integer-types)
+     0]
+    [(member layout string-types)
+     ""]
+    [(member layout '(float double))
+     0.0]
+    [(member layout pointer-types)
+     #f]
+    [(eq? layout 'bool)
+     #f]
+    [(eq? layout 'void)
+     (error "no default value for void")]
+    [else
+     (raise-argument-error 'default-value-for-type
+                           "unrecognized type layout"
+                           type)]))
 
 (define-cstruct _scs-cone
   (;; number of linear equality constraints
@@ -90,56 +91,51 @@
    [n _int])
   #:malloc-mode 'atomic)
 
-(define-syntax (define/fml stx)
-  (syntax-parse stx
-    [(_ nm:id (fmls ...) (body*:expr ...) (key:keyword [fml:id default-val:expr]) rest* ...);
-     #'(define/fml nm (fmls ... key [fml default-val]) (body* ...) rest* ...)]
-    [(_ nm:id (fmls ...) (body*:expr ...))
-     #'(define (nm fmls ...)
-         body* ...)]))
+(define-syntax-parser define/fml
+  [(_ nm:id
+      (fmls ...)
+      (body*:expr ...)
+      (key:keyword [fml:id default-val:expr]) rest* ...);
+   #'(define/fml nm (fmls ... key [fml default-val]) (body* ...) rest* ...)]
+  [(_ nm:id (fmls ...) (body*:expr ...))
+   #'(define (nm fmls ...)
+       body* ...)])
 
-(define-syntax (define-cstruct+kw-constructor stx)
-  (syntax-parse stx
-    [(_ id:id ([fld type opt ...] ...) prop ...)
-     (with-syntax* ([type-name
-                     (datum->syntax #'id
-                                    (string-trim
-                                     (symbol->string
-                                      (syntax-e #'id))
-                                     "_"))]
-                    [default-constructor-name
-                      (datum->syntax #'id
-                                     (string->symbol
-                                      (string-append "make-"
-                                                     (syntax-e #'type-name))))]
-                    [kw-constructor-name
-                     (datum->syntax #'id
-                                    (string->symbol
-                                     (string-append "new-"
-                                                    (syntax-e #'type-name))))])
-       #'(begin
-           (define-cstruct id ([fld type opt ...] ...) prop ...)
-           (define/kw-with-type-defaults (kw-constructor-name [fld type] ...)
-             (default-constructor-name
-               fld
-               ...))))]))
+(begin-for-syntax
+  (define (trim-underscore id)
+    (string-trim
+     (symbol->string
+      (syntax-e id))
+     "_")))
 
-(define-syntax (define/kw-with-type-defaults stx)
-  (syntax-parse stx
-    [(_ (nm:id [fld*:id type] ...) e:expr e*:expr ...)
-     (with-syntax ([(kw* ...)
-                    (map (lambda (a)
-                           (datum->syntax
-                            #f
-                            (string->keyword
-                             (symbol->string (syntax-e a)))))
-                         (syntax->list #'(fld* ...)))])
-       #'(define/fml
-           nm
-           ()
-           (e e* ...)
-           (kw* [fld* (default-value-for-ctype type)])
-           ...))]))
+(define-syntax-parser define-cstruct+kw-constructor
+  [(_ id:id ([fld type opt ...] ...) prop ...)
+   #:with type-name (datum->syntax #'id (trim-underscore #'id))
+   #:with default-constructor-name (format-id #'id "make-~a" #'type-name)
+   #:with kw-constructor-name (format-id #'id "new-~a" #'type-name)
+   #'(begin
+       (define-cstruct id ([fld type opt ...] ...) prop ...)
+       (define/kw-with-type-defaults (kw-constructor-name [fld type] ...)
+         (default-constructor-name
+           fld
+           ...)))])
+
+(begin-for-syntax
+  (define ((id->keyword stx) field-id)
+    (datum->syntax
+     stx
+     (string->keyword
+      (symbol->string (syntax-e field-id))))))
+
+(define-syntax-parser define/kw-with-type-defaults
+  [(_ (nm:id [fld*:id type] ...) e:expr e*:expr ...)
+   #:with (kw* ...) (stx-map (id->keyword #'nm) #'(fld* ...))
+   #'(define/fml
+       nm
+       ()
+       (e e* ...)
+       (kw* [fld* (default-value-for-ctype type)])
+       ...)])
 
 (define-cstruct+kw-constructor _test
   ([A _int]
@@ -157,17 +153,9 @@
   (check-pred test? t)
   (check-equal? (test-A t) -42))
 
-(define-syntax (define/kw stx)
-  (syntax-parse stx
-    [(_ (nm:id arg*:id ...) e:expr e*:expr ...)
-     (with-syntax ([(kw* ...)
-                    (map (lambda (a)
-                           (datum->syntax
-                            #f
-                            (string->keyword
-                             (symbol->string (syntax-e a)))))
-                         (syntax->list #'(arg* ...)))])
-       #'(define/fml nm () (e e* ...) (kw* [arg* #f]) ...))]))
+(define-syntax-parse-rule (define/kw (nm:id arg*:id ...) e:expr e*:expr ...)
+  #:with (kw* ...) (stx-map (id->keyword #'nm) #'(arg* ...))
+  (define/fml nm () (e e* ...) (kw* [arg* #f]) ...))
 
 (define (scs:matrix-alloc nrow ncol nnz)
   (make-scs-matrix
@@ -551,49 +539,3 @@
                                   2)
                       #(0.3 -0.7)
                       1e-9))
-
-;; Notice
-;; To install (from within the package directory):
-;;   $ raco pkg install
-;; To install (once uploaded to pkgs.racket-lang.org):
-;;   $ raco pkg install <<name>>
-;; To uninstall:
-;;   $ raco pkg remove <<name>>
-;; To view documentation:
-;;   $ raco docs <<name>>
-;;
-;; For your convenience, we have included LICENSE-MIT and LICENSE-APACHE files.
-;; If you would prefer to use a different license, replace those files with the
-;; desired license.
-;;
-;; Some users like to add a `private/` directory, place auxiliary files there,
-;; and require them in `main.rkt`.
-;;
-;; See the current version of the racket style guide here:
-;; http://docs.racket-lang.org/style/index.html
-
-;; Code here
-
-
-
-(module+ test
-  ;; Any code in this `test` submodule runs when this file is run using DrRacket
-  ;; or with `raco test`. The code here does not run when this file is
-  ;; required by another module.
-
-  (check-equal? (+ 2 2) 4))
-
-(module+ main
-  ;; (Optional) main submodule. Put code here if you need it to be executed when
-  ;; this file is run using DrRacket or the `racket` executable.  The code here
-  ;; does not run when this file is required by another module. Documentation:
-  ;; http://docs.racket-lang.org/guide/Module_Syntax.html#%28part._main-and-test%29
-
-  (require racket/cmdline)
-  (define who (box "world"))
-  (command-line
-    #:program "my-program"
-    #:once-each
-    [("-n" "--name") name "Who to say hello to" (set-box! who name)]
-    #:args ()
-    (printf "hello ~a~n" (unbox who))))
