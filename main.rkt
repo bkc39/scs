@@ -120,7 +120,6 @@
         fld
         ...))))
 
-
 (begin-for-syntax
   (define ((id->keyword stx) field-id)
     (datum->syntax
