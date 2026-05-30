@@ -45,14 +45,13 @@
   (define native-libs-dir (build-path this-collection-path "native-libs"))
   (define candidates-base (build-path native-libs-dir "candidates"))
   (define env-lib-path (getenv "SCS_NATIVE_LIB_PATH"))
-  ;; Every bundled library copied alongside libscsdir/libscsindir:
-  ;;   libscsdir / libscsindir - the direct / indirect SCS solvers
-  ;;   libopenblas/libblas/liblapack/libgfortran/libquadmath - LAPACK closure
-  ;;   libgomp - OpenMP runtime (Linux)
-  ;;   libgcc_s - GCC runtime (Linux)
-  (define pattern
-    #rx"^lib(scsdir|scsindir|openblas|blas|lapack|gfortran|quadmath|gomp|gcc_s)\\.")
-  (define installed-pattern #rx"^libscsdir\\.")
+  ;; Copy every bundled shared library (matches lib*.dylib / lib*.so / .so.N,
+  ;; and versioned names like libgfortran.5.dylib; skips static .a archives).
+  ;; The candidate directory holds the SCS solvers plus their full runtime
+  ;; closure (BLAS/LAPACK/gfortran/quadmath/gettext/iconv on macOS;
+  ;; openblas/gfortran/quadmath/gomp/gcc_s on Linux), so we take all of them.
+  (define pattern #rx"^lib.*\\.(dylib|so)($|\\.)")
+  (define installed-pattern #rx"^libscsdir\\.(dylib|so)")
   (cond
     [env-lib-path
      (copy-native-libs! native-libs-dir (build-path env-lib-path "lib") pattern)]

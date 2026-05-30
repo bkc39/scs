@@ -1,15 +1,11 @@
 result
 result-*
 .racket-user/
-scs/native-libs/libscsdir.*
-scs/native-libs/libscsindir.*
-scs/native-libs/libopenblas.*
-scs/native-libs/libblas.*
-scs/native-libs/liblapack.*
-scs/native-libs/libgfortran.*
-scs/native-libs/libquadmath.*
-scs/native-libs/libgomp.*
-scs/native-libs/libgcc_s.*
+# Shared libs staged at the top of native-libs/ by the pre-install hook are
+# disposable; the shipped artifacts live under native-libs/candidates/<platform>/.
+scs/native-libs/*.dylib
+scs/native-libs/*.so
+scs/native-libs/*.so.*
 **/compiled/
 *~
 \#*
