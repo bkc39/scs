@@ -6,6 +6,7 @@
          ffi/unsafe/define/conventions
          racket/list
          racket/match
+         racket/runtime-path
          syntax/parse/define
          (for-syntax ffi/unsafe
                      racket/base
@@ -14,12 +15,17 @@
                      racket/struct-info
                      syntax/stx))
 
+;; native-libs/ sits next to this file (collection root); the dev shell and the
+;; pre-install hook populate it.  In Nix builds SCS_NATIVE_LIB_PATH points at the
+;; scs derivation, whose libraries live under lib/.
+(define-runtime-path native-libs-dir "native-libs")
+
+(define (scs-lib-dir)
+  (define env (getenv "SCS_NATIVE_LIB_PATH"))
+  (if env (build-path env "lib") native-libs-dir))
+
 (define-ffi-definer define-scs
-  (ffi-lib (build-path "/"
-                       "usr"
-                       "local"
-                       "lib"
-                       "libscsdir"))
+  (ffi-lib (build-path (scs-lib-dir) "libscsdir"))
   #:make-c-id convention:hyphen->underscore)
 
 (define (default-value-for-ctype type)
@@ -68,7 +74,11 @@
    [s _pointer]
    ;; length of semidefinite constraints array
    [ssize _int]
-   ;; number of dual exponential cone triples
+   ;; array of complex semidefinite cone constraints (added in SCS 3.2.4)
+   [cs _pointer]
+   ;; length of complex semidefinite constraints array
+   [cssize _int]
+   ;; number of primal exponential cone triples
    [ep _int]
    ;; number of dual exponential cone triples
    [ed _int]
@@ -496,19 +506,21 @@
 
   (define k
     (make-scs-cone
-     1
-     2
-     #f
-     #f
-     0
-     #f
-     0
-     #f
-     0
-     0
-     0
-     #f
-     0))
+     1    ; z: linear equality constraints
+     2    ; l: positive orthant cones
+     #f   ; bu
+     #f   ; bl
+     0    ; bsize
+     #f   ; q
+     0    ; qsize
+     #f   ; s
+     0    ; ssize
+     #f   ; cs
+     0    ; cssize
+     0    ; ep
+     0    ; ed
+     #f   ; p
+     0))  ; psize
 
   (define stgs
     (make-scs-default-settings))
@@ -537,6 +549,6 @@
     (scs-solve workspace solution info 0))
   (check-equal? exit-flag 1)
   (check-near/vector? (cptr/len->vector (scs-solution-x solution)
-                                  2)
+                                        2)
                       #(0.3 -0.7)
                       1e-9))

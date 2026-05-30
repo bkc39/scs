@@ -1,6 +1,23 @@
+result
+result-*
+.racket-user/
+scs/native-libs/libscsdir.*
+scs/native-libs/libscsindir.*
+scs/native-libs/libopenblas.*
+scs/native-libs/libblas.*
+scs/native-libs/liblapack.*
+scs/native-libs/libgfortran.*
+scs/native-libs/libquadmath.*
+scs/native-libs/libgomp.*
+scs/native-libs/libgcc_s.*
+**/compiled/
 *~
 \#*
 .\#*
 .DS_Store
-compiled/
-/doc/
+
+# Scribble-rendered documentation output (source is scs/scribblings/).
+scs/doc/
+
+# Local-only planning notes; agents may drop plan files here without committing.
+plans/
