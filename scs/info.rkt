@@ -11,6 +11,6 @@
 (define scribblings '(("scribblings/scs.scrbl" (multi-page))))
 (define pkg-desc "Racket bindings for SCS, the Splitting Conic Solver")
 (define pkg-authors '(bkc))
-(define license '(Apache-2.0 OR MIT))
+(define license 'MIT)
 (define pkg-tags '("optimization" "convex" "conic-solver" "scs" "math"))
 (define pre-install-collection "private/install-scs-native.rkt")
