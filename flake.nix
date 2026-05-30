@@ -94,6 +94,14 @@
             checkPhase = ''
               runHook preCheck
               raco test ./scs/
+              raco test \
+                examples/00-quadratic-program.rkt \
+                examples/01-linear-program.rkt \
+                examples/02-second-order-cone.rkt \
+                examples/03-semidefinite.rkt \
+                examples/04-exponential-cone.rkt \
+                examples/05-warm-start-update.rkt \
+                examples/06-indirect-solver.rkt
               runHook postCheck
             '';
 

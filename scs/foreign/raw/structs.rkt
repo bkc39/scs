@@ -69,8 +69,9 @@
    [n _scs-int]
    ;; A in CSC format, size m x n
    [A _scs-matrix-pointer]
-   ;; P in CSC format, size n x n (PSD, upper triangle only); SCS_NULL if absent
-   [P _scs-matrix-pointer]
+   ;; P in CSC format, size n x n (PSD, upper triangle only); SCS_NULL if absent.
+   ;; Plain _pointer so it accepts both a scs-matrix instance and #f (NULL).
+   [P _pointer]
    ;; dense array for b (size m)
    [b _pointer]
    ;; dense array for c (size n)
