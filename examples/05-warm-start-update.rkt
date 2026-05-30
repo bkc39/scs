@@ -21,8 +21,8 @@
 
 (define (make-info)
   (new-scs-info
-   #:status (ptr-ref (malloc 'atomic info-str-type) info-str-type 0)
-   #:lin_sys_solver (ptr-ref (malloc 'atomic info-str-type) info-str-type 0)))
+   #:status (ptr-ref (malloc 'atomic-interior info-str-type) info-str-type 0)
+   #:lin_sys_solver (ptr-ref (malloc 'atomic-interior info-str-type) info-str-type 0)))
 
 (define (run-example)
   (define A
@@ -32,26 +32,26 @@
                 0 1
                 -1 0
                 0 -1))
-  (define c (vector->scs-float-ptr #(-1.0 -1.0)))
-  (define b1 (vector->scs-float-ptr #(1.0 1.0 0.0 0.0)))
-  (define data (make-scs-data 4 2 A #f b1 c))
+  (define c (scs:vector->float-ptr #(-1.0 -1.0)))
+  (define b1 (scs:vector->float-ptr #(1.0 1.0 0.0 0.0)))
+  (define data (retain! (make-scs-data 4 2 A #f b1 c) A b1 c))
   (define cone (make-cone #:positive 4))
   (define stgs (make-settings #:eps-abs 1e-9 #:eps-rel 1e-9))
   (define work (scs-init data cone stgs))
-  (define sol
-    (make-scs-solution (malloc 'atomic _scs-float 2)
-                       (malloc 'atomic _scs-float 4)
-                       (malloc 'atomic _scs-float 4)))
+  (define sx (malloc 'atomic-interior _scs-float 2))
+  (define sy (malloc 'atomic-interior _scs-float 4))
+  (define ss (malloc 'atomic-interior _scs-float 4))
+  (define sol (retain! (make-scs-solution sx sy ss) sx sy ss))
   (define info (make-info))
 
   (define flag1 (scs-solve work sol info 0))
-  (define x1 (scs-float-ptr->vector (scs-solution-x sol) 2))
+  (define x1 (scs:float-ptr->vector (scs-solution-x sol) 2))
 
   ;; Change the bounds to b = (2, 3) and re-solve, warm started.
-  (define b2 (vector->scs-float-ptr #(2.0 3.0 0.0 0.0)))
+  (define b2 (scs:vector->float-ptr #(2.0 3.0 0.0 0.0)))
   (scs-update work b2 c)
   (define flag2 (scs-solve work sol info 1))
-  (define x2 (scs-float-ptr->vector (scs-solution-x sol) 2))
+  (define x2 (scs:float-ptr->vector (scs-solution-x sol) 2))
 
   (list (list flag1 x1) (list flag2 x2)))
 

@@ -1,8 +1,8 @@
 #lang racket/base
 
-;; Build an ScsSettings populated with SCS's compiled-in defaults, then apply
-;; any caller overrides.  By default SCS logs to stdout; we keep `verbose` off
-;; unless asked, since libraries should be quiet by default.
+;; make-settings: an ScsSettings with SCS's defaults plus caller overrides;
+;; documented in the scs Scribble guide ("Settings").  verbose is off by default
+;; (the C default is on) so the library stays quiet unless asked.
 
 (require "../foreign/raw/solver.rkt"
          "../foreign/raw/structs.rkt")

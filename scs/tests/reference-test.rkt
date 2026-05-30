@@ -9,7 +9,8 @@
 ;; produces the same numbers as the reference implementation.
 
 (module+ test
-  (require rackunit
+  (require racket/vector
+           rackunit
            "../main.rkt")
 
   (define (check-vec actual expected tol)
@@ -56,4 +57,61 @@
     (check-true (solved? r))
     (check-vec (scs-result-x r) #(5.0 3.0 4.0) 1e-5)
     (check-vec (scs-result-y r) #(-0.6 -0.8 1.0 -0.6 -0.8) 1e-5)
-    (check-= (scs-result-pobj r) 5.0 1e-5)))
+    (check-= (scs-result-pobj r) 5.0 1e-5))
+
+  ;; --- Lasso, lambda = 0.1 (example 07) ---
+  (let ([r (solve #:A (scs:matrix 4 4
+                                  1 0 -1 0
+                                  -1 0 -1 0
+                                  0 1 0 -1
+                                  0 -1 0 -1)
+                  #:b #(0.0 0.0 0.0 0.0)
+                  #:c #(-1.5 -2.5 0.1 0.1)
+                  #:P (scs:sparse-matrix 4 4 '(0 0 2) '(0 1 1) '(1 1 2))
+                  #:cone (make-cone #:positive 4)
+                  #:settings (make-settings #:eps-abs 1e-9 #:eps-rel 1e-9))])
+    (check-true (solved? r))
+    (check-vec (vector-take (scs-result-x r) 2) #(0.133333 1.133333) 1e-5)
+    (check-= (scs-result-pobj r) -1.453333 1e-5))
+
+  ;; --- Max entropy over the simplex (example 08) ---
+  (let ([r (solve #:A (scs:matrix 10 6
+                                  1 1 1 0 0 0
+                                  0 0 0 1 0 0
+                                  -1 0 0 0 0 0
+                                  0 0 0 0 0 0
+                                  0 0 0 0 1 0
+                                  0 -1 0 0 0 0
+                                  0 0 0 0 0 0
+                                  0 0 0 0 0 1
+                                  0 0 -1 0 0 0
+                                  0 0 0 0 0 0)
+                  #:b #(1.0 0.0 0.0 1.0 0.0 0.0 1.0 0.0 0.0 1.0)
+                  #:c #(0.0 0.0 0.0 1.0 1.0 1.0)
+                  #:cone (make-cone #:zero 1 #:exp-primal 3)
+                  #:settings (make-settings #:eps-abs 1e-9 #:eps-rel 1e-9))])
+    (check-true (solved? r))
+    (check-vec (vector-take (scs-result-x r) 3) #(0.333333 0.333333 0.333333) 1e-5)
+    (check-= (scs-result-pobj r) -1.098612 1e-5))
+
+  ;; --- MPC with the box cone, x0 = 2 (example 09) ---
+  (let ([r (solve #:A (scs:matrix 7 6
+                                  -1 0 0 1 0 0
+                                  0 -1 0 -1 1 0
+                                  0 0 -1 0 -1 1
+                                  0 0 0 0 0 0
+                                  -1 0 0 0 0 0
+                                  0 -1 0 0 0 0
+                                  0 0 -1 0 0 0)
+                  #:b #(2.0 0.0 0.0 1.0 0.0 0.0 0.0)
+                  #:c #(0.0 0.0 0.0 0.0 0.0 0.0)
+                  #:P (scs:sparse-matrix 6 6
+                                         '(0 0 0.2) '(1 1 0.2) '(2 2 0.2)
+                                         '(3 3 2) '(4 4 2) '(5 5 2))
+                  #:cone (make-cone #:zero 3
+                                    #:box-lower '(-1.0 -1.0 -1.0)
+                                    #:box-upper '(1.0 1.0 1.0))
+                  #:settings (make-settings #:eps-abs 1e-9 #:eps-rel 1e-9))])
+    (check-true (solved? r))
+    (check-= (vector-ref (scs-result-x r) 0) -1.0 1e-5)
+    (check-= (scs-result-pobj r) 1.191603 1e-5)))
