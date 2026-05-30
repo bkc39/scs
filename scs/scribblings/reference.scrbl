@@ -1,11 +1,16 @@
 #lang scribble/manual
 
-@(require (for-label (only-in ffi/unsafe cpointer?)
+@(require (for-label (only-in ffi/unsafe cpointer? ctype?)
                      racket/base
                      racket/contract
                      scs
-                     (except-in scs/foreign scs-version)
-                     (submod scs/foreign unsafe)))
+                     (except-in scs/foreign scs-version
+                                define-scs define-scs-indirect
+                                _scs-int _scs-float)
+                     (submod scs/foreign unsafe)
+                     (only-in scs/foreign/raw
+                              define-scs define-scs-indirect
+                              _scs-int _scs-float)))
 
 @title[#:tag "reference"]{Reference}
 
@@ -143,6 +148,110 @@ re-solves. The cstructs (@racket[make-scs-matrix], @racket[make-scs-data],
 @racket[make-cone] and @racket[make-settings] from @racketmodname[scs] build the
 cone and settings structs ergonomically.
 
+@subsection[#:tag "ref-cstructs"]{Cstructs}
+
+The cstructs mirror the SCS C API (@tt{scs.h}, SCS 3.2.11) one-to-one. Each
+provides a positional constructor (@racket[make-_]), a predicate, and field
+accessors/mutators; the two configuration structs additionally provide a
+keyword constructor (@racket[new-_]) that defaults every field to a
+type-appropriate zero. Most callers should prefer @racket[make-cone],
+@racket[make-settings], and @racket[solve] from @racketmodname[scs] and reach
+for these only when driving the C API directly. Pointer fields store raw
+addresses, so a value placed in one must be kept alive with @racket[retain!] for
+as long as the owning struct is live.
+
+@deftogether[(@defproc[(make-scs-matrix [x (or/c cpointer? #f)]
+                                        [i (or/c cpointer? #f)]
+                                        [p (or/c cpointer? #f)]
+                                        [m exact-integer?]
+                                        [n exact-integer?])
+                       scs-matrix?]
+              @defproc[(scs-matrix? [v any/c]) boolean?])]{
+An @tt{ScsMatrix}: an @racket[m]×@racket[n] sparse matrix in CSC form with value
+array @racket[x], row-index array @racket[i], and column-pointer array
+@racket[p].}
+
+@deftogether[(@defproc[(make-scs-data [m exact-integer?]
+                                      [n exact-integer?]
+                                      [A scs-matrix?]
+                                      [P (or/c scs-matrix? cpointer? #f)]
+                                      [b (or/c cpointer? #f)]
+                                      [c (or/c cpointer? #f)])
+                       scs-data?]
+              @defproc[(scs-data? [v any/c]) boolean?])]{
+An @tt{ScsData}: the constraint matrix @racket[A] (@racket[m]×@racket[n]), the
+optional quadratic-objective matrix @racket[P] (@racket[n]×@racket[n], upper
+triangle, or @racket[#f]), and the dense right-hand sides @racket[b] and
+@racket[c].}
+
+@deftogether[(@defproc[(make-scs-cone [z exact-integer?]
+                                      [l exact-integer?]
+                                      [bu (or/c cpointer? #f)]
+                                      [bl (or/c cpointer? #f)]
+                                      [bsize exact-integer?]
+                                      [q (or/c cpointer? #f)]
+                                      [qsize exact-integer?]
+                                      [s (or/c cpointer? #f)]
+                                      [ssize exact-integer?]
+                                      [cs (or/c cpointer? #f)]
+                                      [cssize exact-integer?]
+                                      [ep exact-integer?]
+                                      [ed exact-integer?]
+                                      [p (or/c cpointer? #f)]
+                                      [psize exact-integer?])
+                       scs-cone?]
+              @defproc[(scs-cone? [v any/c]) boolean?])]{
+An @tt{ScsCone}, the low-level form of @racket[make-cone]: the zero cone
+@racket[z], positive cone @racket[l], box cone (@racket[bu]/@racket[bl], length
+@racket[bsize]), second-order cones @racket[q] (count @racket[qsize]), PSD cones
+@racket[s] (count @racket[ssize]), complex-PSD cones @racket[cs] (count
+@racket[cssize]), exponential cones @racket[ep]/@racket[ed], and power cones
+@racket[p] (count @racket[psize]). See @secref["cones"] for the required row
+ordering.}
+
+@deftogether[(@defproc[(make-scs-solution [x (or/c cpointer? #f)]
+                                          [y (or/c cpointer? #f)]
+                                          [s (or/c cpointer? #f)])
+                       scs-solution?]
+              @defproc[(scs-solution? [v any/c]) boolean?])]{
+An @tt{ScsSolution}: the dense primal (@racket[x]), dual (@racket[y]), and slack
+(@racket[s]) arrays that @racket[scs-solve] fills in.}
+
+@deftogether[(@defproc[(new-scs-settings
+                        [#:normalize normalize exact-integer? 0]
+                        [#:scale scale real? 0.0]
+                        [#:adaptive_scale adaptive_scale exact-integer? 0]
+                        [#:rho_x rho_x real? 0.0]
+                        [#:max_iters max_iters exact-integer? 0]
+                        [#:eps_abs eps_abs real? 0.0]
+                        [#:eps_rel eps_rel real? 0.0]
+                        [#:eps_infeas eps_infeas real? 0.0]
+                        [#:alpha alpha real? 0.0]
+                        [#:time_limit_secs time_limit_secs real? 0.0]
+                        [#:verbose verbose exact-integer? 0]
+                        [#:warm_start warm_start exact-integer? 0]
+                        [#:acceleration_lookback acceleration_lookback exact-integer? 0]
+                        [#:acceleration_interval acceleration_interval exact-integer? 0]
+                        [#:write_data_filename write_data_filename (or/c string? #f) #f]
+                        [#:log_csv_filename log_csv_filename (or/c string? #f) #f])
+                       scs-settings?]
+              @defproc[(scs-settings? [v any/c]) boolean?])]{
+An @tt{ScsSettings}, the low-level form of @racket[make-settings]. Each keyword
+mirrors the correspondingly named @tt{scs.h} field and defaults to a
+type-appropriate zero; pass the result through @racket[scs-set-default-settings]
+to install SCS's real defaults before overriding individual fields. See the
+@hyperlink["https://www.cvxgrp.org/scs/api/settings.html"]{settings reference}.}
+
+@deftogether[(@defproc[(new-scs-info) scs-info?]
+              @defproc[(scs-info? [v any/c]) boolean?])]{
+An @tt{ScsInfo} result record, normally constructed with no arguments to receive
+the outcome of @racket[scs-solve]. Every @tt{scs.h} field (e.g. @tt{iter},
+@tt{status}, @tt{status_val}, @tt{pobj}, @tt{dobj}, @tt{gap}, @tt{solve_time},
+@tt{setup_time}) is also available as an optional keyword defaulting to a
+type-appropriate zero, and as a field accessor.}
+
+@subsection[#:tag "ref-entry-points"]{C entry points}
+
 @deftogether[(@defproc[(scs-init [d scs-data?] [k scs-cone?] [stgs scs-settings?]) cpointer?]
               @defproc[(scs-solve [work cpointer?] [sol scs-solution?] [info scs-info?] [warm exact-integer?]) exact-integer?]
               @defproc[(scs-update [work cpointer?] [b cpointer?] [c cpointer?]) exact-integer?])]{
@@ -151,6 +260,12 @@ for @racket[warm] to warm start), and update the workspace's @racket[b]/@racket[
 for a re-solve. The @racket[/indirect] variants (@racket[scs-init/indirect],
 @racket[scs-solve/indirect], @racket[scs-update/indirect]) use @tt{libscsindir}.
 The workspace is GC-reclaimed via a finalizer.}
+
+@deftogether[(@defproc[(scs-init/indirect [d scs-data?] [k scs-cone?] [stgs scs-settings?]) cpointer?]
+              @defproc[(scs-solve/indirect [work cpointer?] [sol scs-solution?] [info scs-info?] [warm exact-integer?]) exact-integer?]
+              @defproc[(scs-update/indirect [work cpointer?] [b cpointer?] [c cpointer?]) exact-integer?])]{
+The indirect/conjugate-gradient counterparts of @racket[scs-init],
+@racket[scs-solve], and @racket[scs-update], bound against @tt{libscsindir}.}
 
 @defproc[(scs-set-default-settings [stgs scs-settings?]) void?]{
 Populates @racket[stgs] with the SCS defaults in place.}
@@ -163,9 +278,18 @@ cstruct pointer field.}
 
 @subsection[#:tag "ref-unsafe"]{Deterministic release}
 
+@defmodule[(submod scs/foreign unsafe)]
+
 @racket[(require (submod scs/foreign unsafe))] additionally provides
 @racket[scs-finish] and @racket[scs-finish/indirect] for callers that need to
 release a workspace eagerly rather than waiting for the collector.
+
+@deftogether[(@defproc[(scs-finish [work cpointer?]) void?]
+              @defproc[(scs-finish/indirect [work cpointer?]) void?])]{
+Free the SCS workspace @racket[work] returned by @racket[scs-init] (resp.
+@racket[scs-init/indirect]). A workspace is also finalized automatically when it
+becomes unreachable, so calling these is only necessary to release the native
+memory at a deterministic point.}
 
 @; ============================================================================
 @section{Raw FFI layer}
@@ -178,3 +302,17 @@ definers, the @racket[_scs-int] and @racket[_scs-float] C type aliases, the
 cstructs, @racket[retain!], and the solver functions without contracts. Prefer
 @racketmodname[scs] or @racketmodname[scs/foreign] unless you are extending the
 bindings.
+
+@deftogether[(@defform[(define-scs id type-expr option ...)]
+              @defform[(define-scs-indirect id type-expr option ...)])]{
+Bind @racket[id] to the SCS C function of the same name (hyphens mapped to
+underscores) with the @tt{_fun} type @racket[type-expr], against @tt{libscsdir}
+and @tt{libscsindir} respectively. These are @tt{define-ffi-definer} instances,
+so each @racket[option] is a definer keyword clause such as @tt{#:wrap} or
+@tt{#:c-id}.}
+
+@deftogether[(@defthing[_scs-int ctype?]
+              @defthing[_scs-float ctype?])]{
+The C type aliases for SCS's @tt{scs_int} and @tt{scs_float}. In the nixpkgs
+build these are @tt{_int} (32-bit) and @tt{_double}; aliasing them keeps a
+future @tt{DLONG}/@tt{SFLOAT} build a one-line change.}
