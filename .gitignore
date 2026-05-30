@@ -1,6 +1,19 @@
+result
+result-*
+.racket-user/
+# Shared libs staged at the top of native-libs/ by the pre-install hook are
+# disposable; the shipped artifacts live under native-libs/candidates/<platform>/.
+scs/native-libs/*.dylib
+scs/native-libs/*.so
+scs/native-libs/*.so.*
+**/compiled/
 *~
 \#*
 .\#*
 .DS_Store
-compiled/
-/doc/
+
+# Scribble-rendered documentation output (source is scs/scribblings/).
+scs/doc/
+
+# Local-only planning notes; agents may drop plan files here without committing.
+plans/
