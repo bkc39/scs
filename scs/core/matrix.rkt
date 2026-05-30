@@ -45,12 +45,12 @@
       (quotient/remainder k ncol))
     (list i j x)))
 
-;; Column-major ordering of (row col value) triples for CSC assembly.
+;; Column-major (then row) ordering of (row col value) triples for CSC assembly.
 (define (triple<? a b)
   (match* (a b)
     [((list i j _) (list u v _))
      (or (< j v)
-         (< i u))]
+         (and (= j v) (< i u)))]
     [(_ _)
      (error "not a triple")]))
 
@@ -60,24 +60,30 @@
          (append (list n m)
                  (list->sparse-triple-list m xs))))
 
-;; Build an n x m matrix from explicit (row col value) triples.
+;; Build an n x m matrix from explicit (row col value) triples.  The column
+;; pointer array p must be filled for every column (including empty ones), so we
+;; count non-zeros per column and take the running sum -- malloc'd memory is not
+;; zeroed, so skipping empty columns would leave garbage offsets.
 (define (sparse-matrix n m . value-triples)
-  (define nnz
-    (length value-triples))
-  (define mat
-    (matrix-alloc n m nnz))
+  (define sorted (sort value-triples triple<?))
+  (define nnz (length sorted))
+  (define mat (matrix-alloc n m nnz))
+  (define x (scs-matrix-x mat))
+  (define i (scs-matrix-i mat))
+  (define p (scs-matrix-p mat))
 
-  (for/fold ([_current-col 0])
-            ([k (in-naturals)]
-             [vt (in-list (sort value-triples triple<?))])
+  (define col-counts (make-vector m 0))
+  (for ([vt (in-list sorted)]
+        [k (in-naturals)])
     (match-define (list row col val) vt)
-    (ptr-set! (scs-matrix-x mat) _scs-float k (exact->inexact val))
-    (ptr-set! (scs-matrix-i mat) _scs-int k row)
-    (when (> col _current-col)
-      (ptr-set! (scs-matrix-p mat) _scs-int col k))
-    col)
-  (ptr-set! (scs-matrix-p mat) _scs-int 0 0)
-  (ptr-set! (scs-matrix-p mat) _scs-int m nnz)
+    (vector-set! col-counts col (add1 (vector-ref col-counts col)))
+    (ptr-set! x _scs-float k (exact->inexact val))
+    (ptr-set! i _scs-int k row))
+
+  (ptr-set! p _scs-int 0 0)
+  (for ([col (in-range m)])
+    (ptr-set! p _scs-int (+ col 1)
+              (+ (ptr-ref p _scs-int col) (vector-ref col-counts col))))
 
   mat)
 

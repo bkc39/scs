@@ -101,7 +101,10 @@
                 examples/03-semidefinite.rkt \
                 examples/04-exponential-cone.rkt \
                 examples/05-warm-start-update.rkt \
-                examples/06-indirect-solver.rkt
+                examples/06-indirect-solver.rkt \
+                examples/07-lasso.rkt \
+                examples/08-max-entropy.rkt \
+                examples/09-mpc.rkt
               runHook postCheck
             '';
 
