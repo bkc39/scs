@@ -83,8 +83,11 @@ lives in sub-collection modules (target ≤ 500 lines/file).
   `module+ test`.
 
 The dev shell also provides `python3` with `scs`, `numpy`, and `scipy` so the
-reference Python SCS implementation can cross-validate our results
-(`scripts/reference.py`).
+reference Python SCS implementation can cross-validate our results. Run
+`python scripts/reference.py` to print the upstream solutions; the x/y/pobj
+constants in `scs/tests/reference-test.rkt` are mirrored from that output and
+assert our high-level `solve` matches the reference implementation (re-run the
+script to regenerate them if a problem changes).
 
 Every new public API or user-visible feature should include an example-backed
 E2E test in the same change set unless that is impractical.

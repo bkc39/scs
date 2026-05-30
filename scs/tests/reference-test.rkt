@@ -1,0 +1,59 @@
+#lang racket/base
+
+;; Cross-validation against the upstream Python `scs` package (3.2.11).
+;;
+;; The reference constants below are the x / y / pobj values printed by
+;; scripts/reference.py; re-run that script inside `nix develop` to regenerate
+;; them.  Checking the dual y and the objective (not just x) exercises the FFI
+;; marshalling of every solution and info field, and confirms our high-level API
+;; produces the same numbers as the reference implementation.
+
+(module+ test
+  (require rackunit
+           "../main.rkt")
+
+  (define (check-vec actual expected tol)
+    (check-equal? (vector-length actual) (vector-length expected))
+    (for ([a (in-vector actual)]
+          [e (in-vector expected)]
+          [i (in-naturals)])
+      (check-= a e tol (format "index ~a" i))))
+
+  ;; --- QP (example 00) ---
+  (let ([r (solve #:A (scs:matrix 3 2  -1 1  1 0  0 1)
+                  #:b #(-1.0 0.3 -0.5)
+                  #:c #(-1.0 -1.0)
+                  #:P (scs:sparse-matrix 2 2 '(0 0 3) '(0 1 -1) '(1 1 2))
+                  #:cone (make-cone #:zero 1 #:positive 2)
+                  #:settings (make-settings #:eps-abs 1e-9 #:eps-rel 1e-9))])
+    (check-true (solved? r))
+    (check-vec (scs-result-x r) #(0.3000000002 -0.6999999998) 1e-6)
+    (check-vec (scs-result-y r) #(2.7000000005 2.1000000001 0.0) 1e-6)
+    (check-= (scs-result-pobj r) 1.2349999995 1e-6))
+
+  ;; --- LP (example 01) ---
+  (let ([r (solve #:A (scs:matrix 4 2  1 0  0 1  -1 0  0 -1)
+                  #:b #(1.0 1.0 0.0 0.0)
+                  #:c #(-1.0 -1.0)
+                  #:cone (make-cone #:positive 4)
+                  #:settings (make-settings #:eps-abs 1e-9 #:eps-rel 1e-9))])
+    (check-true (solved? r))
+    (check-vec (scs-result-x r) #(1.0 1.0) 1e-6)
+    (check-vec (scs-result-y r) #(1.0 1.0 0.0 0.0) 1e-6)
+    (check-= (scs-result-pobj r) -2.0 1e-6))
+
+  ;; --- SOC (example 02) ---
+  (let ([r (solve #:A (scs:matrix 5 3
+                                  0 1 0
+                                  0 0 1
+                                  -1 0 0
+                                  0 -1 0
+                                  0 0 -1)
+                  #:b #(3.0 4.0 0.0 0.0 0.0)
+                  #:c #(1.0 0.0 0.0)
+                  #:cone (make-cone #:zero 2 #:soc '(3))
+                  #:settings (make-settings #:eps-abs 1e-9 #:eps-rel 1e-9))])
+    (check-true (solved? r))
+    (check-vec (scs-result-x r) #(5.0 3.0 4.0) 1e-5)
+    (check-vec (scs-result-y r) #(-0.6 -0.8 1.0 -0.6 -0.8) 1e-5)
+    (check-= (scs-result-pobj r) 5.0 1e-5)))
