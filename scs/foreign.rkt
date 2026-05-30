@@ -4,12 +4,9 @@
 ;; misreport the re-exports below.  The contracts are the only value-add here.
 #|review: ignore|#
 
-;; Facade for the safe, contracted low-level layer.  `(require scs/foreign)`
-;; re-exports the cstructs and type aliases from the raw layer and wraps the
-;; solver entry points with contracts.  The workspace returned by scs-init is
-;; GC-reclaimed (the raw layer wires allocator/deallocator), so the safe surface
-;; does not export scs-finish; `(require (submod scs/foreign unsafe))` exposes it
-;; for callers needing deterministic release.
+;; Facade for the safe, contracted low-level layer; documented in the scs
+;; Scribble reference ("Contracted FFI layer").  scs-finish is in the `unsafe`
+;; submodule.
 
 (require racket/contract/base
          (only-in ffi/unsafe cpointer?)

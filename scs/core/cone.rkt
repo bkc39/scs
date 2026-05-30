@@ -1,10 +1,7 @@
 #lang racket/base
 
-;; Ergonomic constructor for SCS cone specifications.  `make-cone` takes Racket
-;; lists/values and assembles the ScsCone struct (allocating the pointer arrays
-;; SCS expects).  Rows of A must be ordered to match the cone layout SCS
-;; documents: zero, then positive orthant, then box, SOC, PSD, complex PSD,
-;; exponential, power.
+;; make-cone: build an ScsCone from Racket lists/values.  The cone ordering and
+;; each keyword are documented in the scs Scribble guide ("Cones").
 
 (require ffi/unsafe
          "../foreign/raw/library.rkt"

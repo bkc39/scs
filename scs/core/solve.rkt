@@ -1,9 +1,7 @@
 #lang racket/base
 
-;; High-level solve entry point.  Accepts ordinary Racket data (the CSC matrix
-;; builders from core/matrix, vectors/lists for b and c, a cone from core/cone)
-;; and returns an `scs-result` struct of Racket values.  The solver workspace is
-;; GC-reclaimed, so callers never free anything.
+;; High-level `solve` and the `scs-result` struct, documented in the scs
+;; Scribble reference.  The solver workspace is GC-reclaimed.
 
 (require ffi/unsafe
          "../foreign/raw/library.rkt"
@@ -54,15 +52,8 @@
   (define s (malloc 'atomic-interior _scs-float m))
   (retain! (make-scs-solution x y s) x y s))
 
-;; Solve  minimize (1/2) x'Px + c'x  s.t.  Ax + s = b, s in cone.
-;;   #:A         constraint matrix (scs-matrix, m x n, CSC)
-;;   #:b         right-hand side (length-m vector/list)
-;;   #:c         linear objective (length-n vector/list)
-;;   #:cone      cone specification (from make-cone)
-;;   #:P         optional quadratic objective (n x n, upper-triangular CSC) or #f
-;;   #:settings  optional ScsSettings (from make-settings); #f uses defaults
-;;   #:indirect? use the indirect (CG) linear-system solver
-;;   #:warm-start pass 1 to warm-start from the solution arrays
+;; Solve minimize (1/2) x'Px + c'x s.t. Ax + s = b, s in cone.  See the scs
+;; Scribble reference for the keyword arguments and result fields.
 (define (solve #:A A
                #:b b
                #:c c
