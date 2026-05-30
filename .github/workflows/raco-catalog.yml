@@ -82,6 +82,25 @@ jobs:
             echo "ERROR: no bundled BLAS in $CANDIDATE_DIR" >&2
             exit 1
           fi
+          # Every bundled lib must require no glibc symbol newer than 2.17 (the
+          # CentOS 7 / manylinux2014 baseline pkg-build.racket-lang.org runs).
+          # libgfortran's _Float128 math (@GLIBC_2.26) is redirected to the
+          # bundled libscsshim.so by scripts/build-so.sh; see scripts/glibc-*.
+          for lib in "$CANDIDATE_DIR"/lib*.so*; do
+            [ -f "$lib" ] || continue
+            maxv=$(readelf -V "$lib" 2>/dev/null | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -V | tail -1)
+            [ -z "$maxv" ] && continue
+            if [ "$(printf '%s\nGLIBC_2.17\n' "$maxv" | sort -V | tail -1)" != "GLIBC_2.17" ]; then
+              echo "ERROR: $lib requires $maxv (> GLIBC_2.17)" >&2
+              exit 1
+            fi
+          done
+          # The glibc-compat shim must be staged: after the symbol rename the
+          # SCS solvers' libgfortran resolves its f128 imports from it.
+          if [ ! -f "$CANDIDATE_DIR/libscsshim.so" ]; then
+            echo "ERROR: $CANDIDATE_DIR/libscsshim.so not staged" >&2
+            exit 1
+          fi
           echo "Portability check passed"
 
       - name: Portability check (macOS - otool)

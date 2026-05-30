@@ -48,11 +48,20 @@ From the repo root:
 What the script does (see `scripts/build-so.sh`):
 - BFS-walks the dependency closure of `libscsdir`/`libscsindir` from
   `nixpkgs#scs` and copies every non-system `.so` into the candidate dir.
+  `libgcc_s` is intentionally *not* bundled — it is an ABI-stable system
+  library, and the toolchain's copy pulls `_dl_find_object@GLIBC_2.35` which
+  cannot be lowered; the host provides it (libgfortran needs only ancient
+  `GCC_3.3/4.2/4.3` symbols from it).
 - Sets `RUNPATH=$ORIGIN` on each via `patchelf`.
-- On **x86_64** only, runs `polyfill-glibc` to rebase the glibc requirement to
-  2.17 (manylinux2014) so the libs load on the older glibc that
-  pkg-build.racket-lang.org runs. (aarch64 keeps its glibc dep; that candidate
-  targets Ubuntu 24.04+ runners only.)
+- On **x86_64** only, builds the companion `libscsshim.so` (from
+  `scripts/glibc-shim.c`) and runs `polyfill-glibc
+  --rename-dynamic-symbols=scripts/glibc-renames.txt --target-glibc=2.17` to
+  rebase the glibc requirement to **2.17** (manylinux2014) so the libs load on
+  the older glibc that pkg-build.racket-lang.org runs (< 2.27). The only symbols
+  polyfill cannot lower are libgfortran's `_Float128` math (`*f128@GLIBC_2.26`);
+  those are redirected to `libscsshim.so` (abort-stubs — unreachable from SCS's
+  double-precision path). (aarch64 skips the shim + polyfill and keeps its glibc
+  dep; that candidate targets Ubuntu 24.04+ runners only.)
 
 ## Validate before committing (mirrors the CI checks)
 
@@ -77,6 +86,13 @@ What the script does (see `scripts/build-so.sh`):
    readelf -d "$D/libscsindir.so" | grep -E 'R(UN)?PATH'
    # a bundled BLAS must be present (LAPACK build):
    ls "$D"/libopenblas*.so* "$D"/libblas*.so* 2>/dev/null
+   # the glibc-compat shim must be present (libgfortran depends on it):
+   ls "$D"/libscsshim.so
+   # every lib must require glibc <= 2.17 (x86_64 candidate):
+   for l in "$D"/lib*.so*; do
+     printf '%-22s %s\n' "$(basename "$l")" \
+       "$(readelf -V "$l" | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -V | tail -1)"
+   done
    ```
 
 ## Commit & push
@@ -108,6 +124,10 @@ candidate).
 ## Reference
 
 - `scripts/build-so.sh` — the bundler (darwin path already proven).
+- `scripts/glibc-shim.c` — source for `libscsshim.so`, the tiny companion lib
+  that provides the `_Float128` symbols polyfill-glibc cannot lower.
+- `scripts/glibc-renames.txt` — `polyfill --rename-dynamic-symbols` rules that
+  redirect those symbols to `libscsshim.so`.
 - `scripts/test-local.sh` — the no-Nix install + test harness.
 - `.github/workflows/raco-catalog.yml` — the portability + install checks.
 - `scs/private/install-scs-native.rkt` — the pre-install hook that copies a
