@@ -7,7 +7,7 @@
 (module+ test
   (require ffi/unsafe
            rackunit
-           "../core/matrix.rkt"
+           (prefix-in scs: "../core/matrix.rkt")
            "../foreign/raw.rkt")
 
   (define info-str-type (_array _byte 128))
@@ -56,8 +56,8 @@
   (check-equal? (scs:matrix-ref P 1 0) 0.0)
 
   (define (run-solve init solve)
-    (define b-ptr (vector->scs-float-ptr #(-1.0 0.3 -0.5)))
-    (define c-ptr (vector->scs-float-ptr #(-1.0 -1.0)))
+    (define b-ptr (scs:vector->float-ptr #(-1.0 0.3 -0.5)))
+    (define c-ptr (scs:vector->float-ptr #(-1.0 -1.0)))
     (define data (retain! (make-scs-data 3 2 A P b-ptr c-ptr) A P b-ptr c-ptr))
     (define cone (make-scs-cone 1 2 #f #f 0 #f 0 #f 0 #f 0 0 0 #f 0))
     (define stgs (new-scs-settings))
@@ -73,7 +73,7 @@
     (define info (make-info))
     (define flag (solve work sol info 0))
     (check-equal? flag 1)
-    (check-near/vector (scs-float-ptr->vector (scs-solution-x sol) 2)
+    (check-near/vector (scs:float-ptr->vector (scs-solution-x sol) 2)
                        #(0.3 -0.7)
                        1e-9))
 

@@ -15,11 +15,13 @@
          (only-in ffi/unsafe cpointer?)
          "foreign/raw/library.rkt"
          "foreign/raw/kw-struct.rkt"
+         "foreign/raw/retain.rkt"
          "foreign/raw/structs.rkt"
          "foreign/raw/solver.rkt")
 
 (provide (all-from-out "foreign/raw/library.rkt")
          (all-from-out "foreign/raw/kw-struct.rkt")
+         (all-from-out "foreign/raw/retain.rkt")
          (all-from-out "foreign/raw/structs.rkt")
          _scs-work-pointer
          scs-version

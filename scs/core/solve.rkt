@@ -73,8 +73,8 @@
                #:warm-start [warm 0])
   (define m (scs-matrix-m A))   ; rows of A: number of constraints
   (define n (scs-matrix-n A))   ; cols of A: number of variables
-  (define b-ptr (vector->scs-float-ptr b))
-  (define c-ptr (vector->scs-float-ptr c))
+  (define b-ptr (vector->float-ptr b))
+  (define c-ptr (vector->float-ptr c))
   ;; retain A, P, and the b/c buffers for the lifetime of the data struct
   (define data (retain! (make-scs-data m n A P b-ptr c-ptr) A P b-ptr c-ptr))
   (define stgs (or settings (make-settings)))
@@ -88,9 +88,9 @@
    flag
    (status-array->string (scs-info-status info))
    (scs-info-status_val info)
-   (scs-float-ptr->vector (scs-solution-x sol) n)
-   (scs-float-ptr->vector (scs-solution-y sol) m)
-   (scs-float-ptr->vector (scs-solution-s sol) m)
+   (float-ptr->vector (scs-solution-x sol) n)
+   (float-ptr->vector (scs-solution-y sol) m)
+   (float-ptr->vector (scs-solution-s sol) m)
    (scs-info-pobj info)
    (scs-info-dobj info)
    (scs-info-gap info)
