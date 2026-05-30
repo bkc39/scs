@@ -1,0 +1,126 @@
+#lang racket/base
+
+;; Racket-friendly construction and inspection of SCS sparse matrices (CSC) and
+;; dense float vectors.  These are the building blocks the high-level `solve`
+;; accepts for A, P, b and c.
+;;
+;; The colon-prefixed names (scs:matrix, ...) avoid clashing with the cstruct
+;; accessors (scs-matrix-m, ...) generated for the ScsMatrix struct.
+
+(require ffi/unsafe
+         racket/list
+         racket/match
+         "../foreign/raw/library.rkt"
+         "../foreign/raw/structs.rkt")
+
+(provide scs:matrix
+         scs:sparse-matrix
+         scs:matrix-alloc
+         scs:matrix-ref
+         scs:matrix-nnz
+         scs:matrix-p->vector
+         scs:matrix-x->vector
+         scs:matrix-i->vector
+         vector->scs-float-ptr
+         scs-float-ptr->vector)
+
+;; Allocate an m x n CSC matrix with room for nnz non-zeros.
+(define (scs:matrix-alloc nrow ncol nnz)
+  (make-scs-matrix
+   (malloc 'atomic _scs-float nnz)
+   (malloc 'atomic _scs-int nnz)
+   (malloc 'atomic _scs-int (+ ncol 1))
+   nrow
+   ncol))
+
+;; Convert a dense row-major list of values into (row col value) triples,
+;; dropping exact zeros.
+(define (list->sparse-triple-list ncol xs)
+  (for/list ([k (in-naturals)]
+             [x (in-list xs)]
+             #:unless (zero? x))
+    (define-values (i j)
+      (quotient/remainder k ncol))
+    (list i j x)))
+
+;; Column-major ordering of (row col value) triples for CSC assembly.
+(define (triple<? a b)
+  (match* (a b)
+    [((list i j _) (list u v _))
+     (or (< j v)
+         (< i u))]
+    [(_ _)
+     (error "not a triple")]))
+
+;; Build an n x m matrix from a dense row-major sequence of values.
+(define (scs:matrix n m . xs)
+  (apply scs:sparse-matrix
+         (append (list n m)
+                 (list->sparse-triple-list m xs))))
+
+;; Build an n x m matrix from explicit (row col value) triples.
+(define (scs:sparse-matrix n m . value-triples)
+  (define nnz
+    (length value-triples))
+  (define mat
+    (scs:matrix-alloc n m nnz))
+
+  (for/fold ([_current-col 0])
+            ([k (in-naturals)]
+             [vt (in-list (sort value-triples triple<?))])
+    (match-define (list row col val) vt)
+    (ptr-set! (scs-matrix-x mat) _scs-float k (exact->inexact val))
+    (ptr-set! (scs-matrix-i mat) _scs-int k row)
+    (when (> col _current-col)
+      (ptr-set! (scs-matrix-p mat) _scs-int col k))
+    col)
+  (ptr-set! (scs-matrix-p mat) _scs-int 0 0)
+  (ptr-set! (scs-matrix-p mat) _scs-int m nnz)
+
+  mat)
+
+(define (scs:matrix-p->vector mat)
+  (define plen (+ 1 (scs-matrix-n mat)))
+  (for/vector #:length plen ([idx (in-range plen)])
+    (ptr-ref (scs-matrix-p mat) _scs-int idx)))
+
+(define (scs:matrix-nnz mat)
+  (ptr-ref (scs-matrix-p mat) _scs-int (scs-matrix-n mat)))
+
+(define (scs:matrix-nnz-buffer->vector mat field-id type)
+  (define nnz (scs:matrix-nnz mat))
+  (for/vector #:length nnz ([idx (in-range nnz)])
+    (ptr-ref (field-id mat) type idx)))
+
+(define (scs:matrix-x->vector mat)
+  (scs:matrix-nnz-buffer->vector mat scs-matrix-x _scs-float))
+
+(define (scs:matrix-i->vector mat)
+  (scs:matrix-nnz-buffer->vector mat scs-matrix-i _scs-int))
+
+;; Random-access element lookup; returns 0.0 for entries absent from the CSC
+;; representation.
+(define (scs:matrix-ref mat i j)
+  (unless (and (< i (scs-matrix-m mat))
+               (< j (scs-matrix-n mat)))
+    (error "scs:matrix-ref: index out of bounds"))
+  (or
+   (for/first ([idx (in-range (ptr-ref (scs-matrix-p mat) _scs-int j)
+                              (ptr-ref (scs-matrix-p mat) _scs-int (+ j 1)))]
+               #:when (= i (ptr-ref (scs-matrix-i mat) _scs-int idx)))
+     (ptr-ref (scs-matrix-x mat) _scs-float idx))
+   0.0))
+
+;; Copy a Racket sequence of reals into a freshly malloc'd scs_float array.
+(define (vector->scs-float-ptr v)
+  (define vec (if (list? v) (list->vector v) v))
+  (define ptr (malloc 'atomic _scs-float (vector-length vec)))
+  (for ([val (in-vector vec)]
+        [idx (in-naturals)])
+    (ptr-set! ptr _scs-float idx (exact->inexact val)))
+  ptr)
+
+;; Read `len` scs_float values out of a pointer into a Racket vector.
+(define (scs-float-ptr->vector ptr len)
+  (for/vector #:length len ([idx (in-range len)])
+    (ptr-ref ptr _scs-float idx)))
