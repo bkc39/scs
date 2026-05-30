@@ -46,6 +46,11 @@ The default API is high level:
 Use `(require scs/foreign)` for the contracted low-level wrappers, and
 `(require scs/foreign/raw)` for the direct C FFI bindings.
 
+Full documentation — a Guide, worked Examples, and an API Reference — is in the
+package's Scribble docs (`scs/scribblings/`, hosted on docs.racket-lang.org);
+render them locally with `raco scribble scs/scribblings/scs.scrbl` or
+`raco docs scs`.
+
 ## Quick start
 
 ```bash

@@ -69,13 +69,20 @@ Every top-level module path is a thin *re-export facade*; the implementation
 lives in sub-collection modules (target ≤ 500 lines/file).
 
 - `scs/info.rkt` — package metadata and native-library pre-install hook.
-- `scs/main.rkt` — facade for the high-level API; re-exports `core/*`.
+- `scs/main.rkt` — facade for the high-level API; re-exports `core/*`. The
+  CSC matrix builders are defined with plain names in `core/matrix.rkt` and
+  re-exported here under the `scs:` prefix via `(prefix-in scs: ...)` — do not
+  hand-write the prefix in definitions.
 - `scs/core/*.rkt` — high-level implementation: `matrix` (CSC builders),
   `cone`, `settings`, `solve`.
 - `scs/foreign.rkt` — facade for the safe contracted layer.
 - `scs/foreign/raw.rkt` — facade for the direct C FFI layer; re-exports
   `foreign/raw/{library,kw-struct,structs,solver}.rkt`.
 - `scs/private/install-scs-native.rkt` — native-library pre-install hook.
+- `scs/scribblings/{scs,guide,examples,reference}.scrbl` — the multi-page user
+  guide (hosted on docs.racket-lang.org). Expository prose lives here, not in
+  code comments; source files keep only terse maintainer notes. The `nix build`
+  checkPhase renders the docs with `raco scribble` to catch errors.
 - `scs/tests/*.rkt` — cross-cutting integration tests; module-local unit tests
   live in `module+ test` submodules.
 - `examples/NN-*.rkt` — numbered runnable examples; each exports `run-example`,
