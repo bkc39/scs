@@ -31,13 +31,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A platform's candidate is built on a host of that platform via
+      # scripts/build-so.sh and committed under native-libs/candidates/.  Until
+      # one is staged (e.g. the Linux candidates, which need a Linux host), skip
+      # the job rather than fail so the rest of CI stays green.
+      - name: Check candidate is staged
+        id: candidate
+        shell: bash
+        run: |
+          if ls "scs/native-libs/candidates/${{ matrix.platform }}"/libscsdir.* >/dev/null 2>&1; then
+            echo "staged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "staged=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No candidate staged for ${{ matrix.platform }}; run scripts/build-so.sh on that platform and commit native-libs/candidates/${{ matrix.platform }}/. Skipping."
+          fi
+
       - uses: Bogdanp/setup-racket@v1.15
+        if: steps.candidate.outputs.staged == 'true'
         with:
           version: "stable"
           architecture: ${{ matrix.racket_arch }}
 
       - name: Portability check (Linux - ldd / readelf)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && steps.candidate.outputs.staged == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -69,7 +85,7 @@ jobs:
           echo "Portability check passed"
 
       - name: Portability check (macOS - otool)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && steps.candidate.outputs.staged == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -92,5 +108,6 @@ jobs:
           echo "Portability check passed"
 
       - name: Install and test
+        if: steps.candidate.outputs.staged == 'true'
         shell: bash
         run: bash scripts/test-local.sh
