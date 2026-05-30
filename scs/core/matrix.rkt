@@ -16,6 +16,7 @@
          racket/list
          racket/match
          "../foreign/raw/library.rkt"
+         "../foreign/raw/retain.rkt"
          "../foreign/raw/structs.rkt")
 
 (provide scs:matrix
@@ -29,14 +30,13 @@
          vector->scs-float-ptr
          scs-float-ptr->vector)
 
-;; Allocate an m x n CSC matrix with room for nnz non-zeros.
+;; Allocate an m x n CSC matrix with room for nnz non-zeros.  The matrix struct
+;; retains its x/i/p buffers so they outlive it.
 (define (scs:matrix-alloc nrow ncol nnz)
-  (make-scs-matrix
-   (malloc 'atomic _scs-float nnz)
-   (malloc 'atomic _scs-int nnz)
-   (malloc 'atomic _scs-int (+ ncol 1))
-   nrow
-   ncol))
+  (define x (malloc 'atomic-interior _scs-float nnz))
+  (define i (malloc 'atomic-interior _scs-int nnz))
+  (define p (malloc 'atomic-interior _scs-int (+ ncol 1)))
+  (retain! (make-scs-matrix x i p nrow ncol) x i p))
 
 ;; Convert a dense row-major list of values into (row col value) triples,
 ;; dropping exact zeros.
@@ -119,7 +119,7 @@
 ;; Copy a Racket sequence of reals into a freshly malloc'd scs_float array.
 (define (vector->scs-float-ptr v)
   (define vec (if (list? v) (list->vector v) v))
-  (define ptr (malloc 'atomic _scs-float (vector-length vec)))
+  (define ptr (malloc 'atomic-interior _scs-float (vector-length vec)))
   (for ([val (in-vector vec)]
         [idx (in-naturals)])
     (ptr-set! ptr _scs-float idx (exact->inexact val)))

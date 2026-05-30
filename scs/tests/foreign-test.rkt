@@ -14,8 +14,8 @@
 
   (define (make-info)
     (new-scs-info
-     #:status (ptr-ref (malloc 'atomic info-str-type) info-str-type 0)
-     #:lin_sys_solver (ptr-ref (malloc 'atomic info-str-type) info-str-type 0)))
+     #:status (ptr-ref (malloc 'atomic-interior info-str-type) info-str-type 0)
+     #:lin_sys_solver (ptr-ref (malloc 'atomic-interior info-str-type) info-str-type 0)))
 
   (define (sum-sq-diff x y)
     (for/sum ([xi (in-vector x)]
@@ -56,10 +56,9 @@
   (check-equal? (scs:matrix-ref P 1 0) 0.0)
 
   (define (run-solve init solve)
-    (define data
-      (make-scs-data 3 2 A P
-                     (vector->scs-float-ptr #(-1.0 0.3 -0.5))
-                     (vector->scs-float-ptr #(-1.0 -1.0))))
+    (define b-ptr (vector->scs-float-ptr #(-1.0 0.3 -0.5)))
+    (define c-ptr (vector->scs-float-ptr #(-1.0 -1.0)))
+    (define data (retain! (make-scs-data 3 2 A P b-ptr c-ptr) A P b-ptr c-ptr))
     (define cone (make-scs-cone 1 2 #f #f 0 #f 0 #f 0 #f 0 0 0 #f 0))
     (define stgs (new-scs-settings))
     (scs-set-default-settings stgs)
@@ -67,10 +66,10 @@
     (set-scs-settings-eps_abs! stgs 1e-9)
     (set-scs-settings-eps_rel! stgs 1e-9)
     (define work (init data cone stgs))
-    (define sol
-      (make-scs-solution (malloc 'atomic _scs-float 2)
-                         (malloc 'atomic _scs-float 3)
-                         (malloc 'atomic _scs-float 3)))
+    (define sx (malloc 'atomic-interior _scs-float 2))
+    (define sy (malloc 'atomic-interior _scs-float 3))
+    (define ss (malloc 'atomic-interior _scs-float 3))
+    (define sol (retain! (make-scs-solution sx sy ss) sx sy ss))
     (define info (make-info))
     (define flag (solve work sol info 0))
     (check-equal? flag 1)

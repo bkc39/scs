@@ -10,6 +10,12 @@
 
 (provide (all-defined-out))
 
+;; All SCS structs and the buffers they point at are handed to C, so they must
+;; live in non-moving memory: 'atomic-interior is GC-managed but the collector
+;; never relocates it.  Plain 'atomic memory MOVES, which would leave the raw
+;; addresses stored in these structs (and held by the C solver) dangling after
+;; an unrelated allocation triggers a GC.
+
 ;; ScsCone -- rows of A must appear in this exact order.
 ;; NOTE: cs/cssize (complex semidefinite cones) were added in SCS 3.2.4 between
 ;; ssize and ep.  The spectral-cone fields (USE_SPECTRAL_CONES) are NOT present
@@ -45,7 +51,7 @@
    [p _pointer]
    ;; number of primal and dual power cone triples
    [psize _scs-int])
-  #:malloc-mode 'atomic)
+  #:malloc-mode 'atomic-interior)
 
 ;; ScsMatrix -- compressed sparse column (CSC), zero-based indexing.
 (define-cstruct _scs-matrix
@@ -59,7 +65,7 @@
    [m _scs-int]
    ;; number of columns
    [n _scs-int])
-  #:malloc-mode 'atomic)
+  #:malloc-mode 'atomic-interior)
 
 ;; ScsData -- problem data.
 (define-cstruct _scs-data
@@ -76,7 +82,7 @@
    [b _pointer]
    ;; dense array for c (size n)
    [c _pointer])
-  #:malloc-mode 'atomic)
+  #:malloc-mode 'atomic-interior)
 
 ;; ScsSettings -- solver configuration.  `new-scs-settings` builds one with all
 ;; fields zeroed; pair with scs-set-default-settings to populate real defaults.
@@ -113,7 +119,7 @@
    [write_data_filename _string]
    ;; if set, log data to this csv file (makes SCS slow)
    [log_csv_filename _string])
-  #:malloc-mode 'atomic)
+  #:malloc-mode 'atomic-interior)
 
 ;; ScsSolution -- primal/dual/slack solution arrays.
 (define-cstruct _scs-solution
@@ -123,7 +129,7 @@
    [y _pointer]
    ;; slack variable
    [s _pointer])
-  #:malloc-mode 'atomic)
+  #:malloc-mode 'atomic-interior)
 
 ;; ScsInfo -- solve summary at termination.
 (define-cstruct+kw-constructor _scs-info
@@ -171,4 +177,4 @@
    [cone_time _scs-float]
    ;; total time (ms) in the acceleration routine
    [accel_time _scs-float])
-  #:malloc-mode 'atomic)
+  #:malloc-mode 'atomic-interior)

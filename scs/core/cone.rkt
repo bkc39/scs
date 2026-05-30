@@ -8,6 +8,7 @@
 
 (require ffi/unsafe
          "../foreign/raw/library.rkt"
+         "../foreign/raw/retain.rkt"
          "../foreign/raw/structs.rkt")
 
 (provide make-cone)
@@ -16,7 +17,7 @@
   (cond
     [(null? xs) #f]
     [else
-     (define ptr (malloc 'atomic _scs-int (length xs)))
+     (define ptr (malloc 'atomic-interior _scs-int (length xs)))
      (for ([v (in-list xs)]
            [i (in-naturals)])
        (ptr-set! ptr _scs-int i v))
@@ -26,7 +27,7 @@
   (cond
     [(null? xs) #f]
     [else
-     (define ptr (malloc 'atomic _scs-float (length xs)))
+     (define ptr (malloc 'atomic-interior _scs-float (length xs)))
      (for ([v (in-list xs)]
            [i (in-naturals)])
        (ptr-set! ptr _scs-float i (exact->inexact v)))
@@ -56,19 +57,18 @@
   (define box-len (length box-lower))
   (unless (= box-len (length box-upper))
     (error 'make-cone "box-lower and box-upper must have equal length"))
-  (make-scs-cone
-   z
-   l
-   (float-list->ptr box-upper)
-   (float-list->ptr box-lower)
-   (if (> box-len 0) (+ box-len 1) 0)
-   (int-list->ptr soc)
-   (length soc)
-   (int-list->ptr psd)
-   (length psd)
-   (int-list->ptr complex-psd)
-   (length complex-psd)
-   exp-primal
-   exp-dual
-   (float-list->ptr power)
-   (length power)))
+  (define bu (float-list->ptr box-upper))
+  (define bl (float-list->ptr box-lower))
+  (define q (int-list->ptr soc))
+  (define s (int-list->ptr psd))
+  (define cs (int-list->ptr complex-psd))
+  (define p (float-list->ptr power))
+  ;; retain the pointer arrays so they outlive the cone struct
+  (retain!
+   (make-scs-cone z l bu bl (if (> box-len 0) (+ box-len 1) 0)
+                  q (length soc)
+                  s (length psd)
+                  cs (length complex-psd)
+                  exp-primal exp-dual
+                  p (length power))
+   bu bl q s cs p))

@@ -7,6 +7,7 @@
 
 (require ffi/unsafe
          "../foreign/raw/library.rkt"
+         "../foreign/raw/retain.rkt"
          "../foreign/raw/solver.rkt"
          "../foreign/raw/structs.rkt"
          "matrix.rkt"
@@ -40,17 +41,18 @@
 ;; ScsInfo's status / lin_sys_solver are char[128]; new-scs-info cannot default
 ;; an array field, so seed them with zeroed buffers SCS will overwrite.
 (define (make-info)
-  (define status-ptr (malloc 'atomic info-str-type))
-  (define lin-ptr (malloc 'atomic info-str-type))
+  (define status-ptr (malloc 'atomic-interior info-str-type))
+  (define lin-ptr (malloc 'atomic-interior info-str-type))
   (new-scs-info #:status (ptr-ref status-ptr info-str-type 0)
                 #:lin_sys_solver (ptr-ref lin-ptr info-str-type 0)))
 
-;; x has length n (variables); y and s have length m (constraints).
+;; x has length n (variables); y and s have length m (constraints).  The
+;; solution struct retains its arrays so they outlive it.
 (define (make-solution m n)
-  (make-scs-solution
-   (malloc 'atomic _scs-float n)
-   (malloc 'atomic _scs-float m)
-   (malloc 'atomic _scs-float m)))
+  (define x (malloc 'atomic-interior _scs-float n))
+  (define y (malloc 'atomic-interior _scs-float m))
+  (define s (malloc 'atomic-interior _scs-float m))
+  (retain! (make-scs-solution x y s) x y s))
 
 ;; Solve  minimize (1/2) x'Px + c'x  s.t.  Ax + s = b, s in cone.
 ;;   #:A         constraint matrix (scs-matrix, m x n, CSC)
@@ -71,10 +73,10 @@
                #:warm-start [warm 0])
   (define m (scs-matrix-m A))   ; rows of A: number of constraints
   (define n (scs-matrix-n A))   ; cols of A: number of variables
-  (define data
-    (make-scs-data m n A P
-                   (vector->scs-float-ptr b)
-                   (vector->scs-float-ptr c)))
+  (define b-ptr (vector->scs-float-ptr b))
+  (define c-ptr (vector->scs-float-ptr c))
+  ;; retain A, P, and the b/c buffers for the lifetime of the data struct
+  (define data (retain! (make-scs-data m n A P b-ptr c-ptr) A P b-ptr c-ptr))
   (define stgs (or settings (make-settings)))
   (define init (if indirect? scs-init/indirect scs-init))
   (define run (if indirect? scs-solve/indirect scs-solve))

@@ -11,10 +11,12 @@
 
 (require "raw/library.rkt"
          "raw/kw-struct.rkt"
+         "raw/retain.rkt"
          "raw/structs.rkt"
          "raw/solver.rkt")
 
 (provide (all-from-out "raw/library.rkt")
          (all-from-out "raw/kw-struct.rkt")
+         (all-from-out "raw/retain.rkt")
          (all-from-out "raw/structs.rkt")
          (all-from-out "raw/solver.rkt"))
