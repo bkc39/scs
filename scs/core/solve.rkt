@@ -7,8 +7,8 @@
 
 (require ffi/unsafe
          "../foreign/raw/library.rkt"
-         "../foreign/raw/structs.rkt"
          "../foreign/raw/solver.rkt"
+         "../foreign/raw/structs.rkt"
          "matrix.rkt"
          "settings.rkt")
 

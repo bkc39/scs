@@ -4,8 +4,8 @@
 ;; any caller overrides.  By default SCS logs to stdout; we keep `verbose` off
 ;; unless asked, since libraries should be quiet by default.
 
-(require "../foreign/raw/structs.rkt"
-         "../foreign/raw/solver.rkt")
+(require "../foreign/raw/solver.rkt"
+         "../foreign/raw/structs.rkt")
 
 (provide make-settings)
 

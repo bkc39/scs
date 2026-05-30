@@ -6,6 +6,11 @@
 ;;
 ;; The colon-prefixed names (scs:matrix, ...) avoid clashing with the cstruct
 ;; accessors (scs-matrix-m, ...) generated for the ScsMatrix struct.
+;;
+;; raco review does not expand define-cstruct, so it cannot see that the
+;; scs-matrix-* accessors and _scs-int/_scs-float aliases come from the requires
+;; below and misreports them as unused; this module is review-ignored.
+#|review: ignore|#
 
 (require ffi/unsafe
          racket/list

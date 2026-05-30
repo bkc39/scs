@@ -1,5 +1,11 @@
 #lang racket/base
 
+;; raco review lints without expanding macros, so it misreads syntax-parse
+;; pattern variables (id:id, fld*:id, ...) as ordinary identifiers and reports
+;; spurious "already defined" / "never used" errors.  Nothing here is reviewable
+;; at the surface level.
+#|review: ignore|#
+
 ;; Metaprogramming used by the raw struct layer.
 ;;
 ;; `define-cstruct+kw-constructor` defines a `define-cstruct` plus a
