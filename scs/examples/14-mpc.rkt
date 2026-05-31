@@ -1,9 +1,7 @@
 #lang scribble/lp2
 
 @(require (for-label racket/base
-                     ffi/unsafe
-                     scs
-                     scs/foreign))
+                     scs))
 
 @section[#:tag "ex-mpc"]{Model predictive control}
 
@@ -25,20 +23,10 @@ For a scalar system @tt{x_{t+1} = x_t + u_t} over horizon @tt{T = 3} with
 Variables are @tt{w = (u₀, u₁, u₂, x₁, x₂, x₃)}.
 
 @chunk[<require>
-(require ffi/unsafe
-         scs
-         scs/foreign)]
+(require scs)]
 
 @chunk[<provide>
 (provide run-example)]
-
-@chunk[<make-info>
-(define info-str-type (_array _byte 128))
-
-(define (make-info)
-  (new-scs-info
-   #:status (ptr-ref (malloc 'atomic-interior info-str-type) info-str-type 0)
-   #:lin_sys_solver (ptr-ref (malloc 'atomic-interior info-str-type) info-str-type 0)))]
 
 @subsection{Objective and dynamics}
 
@@ -69,47 +57,43 @@ the @tech{zero cone}:
                0  0  0  0  0  0    (code:comment "box scale row -> s0 = 1")
               -1  0  0  0  0  0    (code:comment "s = u0")
                0 -1  0  0  0  0    (code:comment "s = u1")
-               0  0 -1  0  0  0))  (code:comment "s = u2")
-
-(define c (scs:vector->float-ptr #(0.0 0.0 0.0 0.0 0.0 0.0)))]
+               0  0 -1  0  0  0))] (code:comment "s = u2")
 
 The right-hand side depends only on the initial state @tt{x₀} (its first
 entry), and the box scale row contributes the @tt{1}:
 
 @chunk[<rhs>
 (define (rhs x0)
-  (scs:vector->float-ptr (vector x0 0.0 0.0 1.0 0.0 0.0 0.0)))]
+  (vector x0 0.0 0.0 1.0 0.0 0.0 0.0))]
 
 @subsection{Receding horizon}
 
-We solve for @tt{x₀ = 2}, then @racket[scs-update] the right-hand side and
-warm-solve for @tt{x₀ = 1.5}. @racket[#:box-lower] and @racket[#:box-upper]
-declare the bounds; the cone is three zero rows then the box block.
+We build the solver for @tt{x₀ = 2}, solve it, then @racket[solver-update!] the
+right-hand side and warm-solve for @tt{x₀ = 1.5}. @racket[#:box-lower] and
+@racket[#:box-upper] declare the bounds; the cone is three zero rows then the
+box block.
 
 @chunk[<run>
 (define (run-example [x0s '(2.0 1.5)])
-  (define b0 (rhs (car x0s)))
-  (define data (retain! (make-scs-data 7 6 G P b0 c) G P b0 c))
-  (define cone
-    (make-cone #:zero 3 #:box-lower '(-1.0 -1.0 -1.0) #:box-upper '(1.0 1.0 1.0)))
-  (define stgs (make-settings #:eps-abs 1e-9 #:eps-rel 1e-9))
-  (define work (scs-init data cone stgs))
-  (define sx (malloc 'atomic-interior _scs-float 6))
-  (define sy (malloc 'atomic-interior _scs-float 7))
-  (define ss (malloc 'atomic-interior _scs-float 7))
-  (define sol (retain! (make-scs-solution sx sy ss) sx sy ss))
-  (define info (make-info))
+  (define s
+    (make-solver #:A G
+                 #:b (rhs (car x0s))
+                 #:c #(0.0 0.0 0.0 0.0 0.0 0.0)
+                 #:P P
+                 #:cone (make-cone #:zero 3
+                                   #:box-lower '(-1.0 -1.0 -1.0)
+                                   #:box-upper '(1.0 1.0 1.0))
+                 #:settings (make-settings #:eps-abs 1e-9 #:eps-rel 1e-9)))
   (for/list ([x0 (in-list x0s)]
              [step (in-naturals)])
-    (define flag
+    (define r
       (cond
-        [(zero? step) (scs-solve work sol info 0)]
+        [(zero? step) (solver-solve! s)]
         [else
-         (scs-update work (rhs x0) c)
-         (scs-solve work sol info 1)]))
+         (solver-update! s #:b (rhs x0))
+         (solver-solve! s)]))
     ;; w = (u0 u1 u2 x1 x2 x3); report the first control input u0.
-    (define w (scs:float-ptr->vector (scs-solution-x sol) 6))
-    (list x0 flag (vector-ref w 0))))]
+    (list x0 (scs-result-exit-flag r) (vector-ref (scs-result-x r) 0))))]
 
 @bold{Running it.}
 
@@ -122,7 +106,6 @@ Both initial states drive the first input to its lower bound:
 @chunk[<*>
   <require>
   <provide>
-  <make-info>
   <P>
   <G>
   <rhs>

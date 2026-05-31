@@ -12,11 +12,13 @@
 (require (prefix-in scs: "core/matrix.rkt")
          "core/cone.rkt"
          "core/settings.rkt"
+         "core/solver.rkt"
          "core/solve.rkt"
          (only-in "foreign/raw/solver.rkt" scs-version))
 
 (provide (all-from-out "core/matrix.rkt")
          (all-from-out "core/cone.rkt")
          (all-from-out "core/settings.rkt")
+         (all-from-out "core/solver.rkt")
          (all-from-out "core/solve.rkt")
          scs-version)

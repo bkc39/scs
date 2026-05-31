@@ -135,7 +135,8 @@ through the @racketmodname[scs/foreign] layer, and broadening
 Solves the cone program described by @racket[A], @racket[b], @racket[c], the
 optional quadratic objective @racket[P], and @racket[cone]. With
 @racket[#:indirect? #t] the indirect (conjugate-gradient) linear-system solver is
-used. The workspace is reclaimed by the garbage collector.}
+used. The workspace is reclaimed by the garbage collector. @racket[solve] is a
+one-shot wrapper over @racket[make-solver] and @racket[solver-solve!].}
 
 @defstruct*[scs-result ([exit-flag exact-integer?]
                         [status string?]
@@ -161,6 +162,47 @@ Returns @racket[#t] when @racket[r] solved to tolerance (exit flag @racket[1]).}
 
 @defproc[(scs-version) string?]{
 The version string of the underlying SCS C library.}
+
+@subsection[#:tag "ref-solver"]{Re-solving with a solver}
+
+For a sequence of problems that differ only in @racket[b] or @racket[c], build
+a @racket[scs-solver] once and re-solve it. The solver owns the workspace, the
+solution and info buffers, and the problem data; nothing is allocated or freed
+by hand and the workspace is reclaimed by the garbage collector. See
+@secref["warm-starting"].
+
+@defproc[(make-solver [#:A A any/c]
+                      [#:b b (or/c (vectorof real?) (listof real?))]
+                      [#:c c (or/c (vectorof real?) (listof real?))]
+                      [#:cone cone scs-cone?]
+                      [#:P P (or/c any/c #f) #f]
+                      [#:settings settings (or/c scs-settings? #f) #f]
+                      [#:indirect? indirect? boolean? #f])
+         scs-solver?]{
+Builds a reusable solver for the cone program described by @racket[A],
+@racket[b], @racket[c], the optional @racket[P], and @racket[cone]. Takes the
+same arguments as @racket[solve] except @racket[#:warm-start]; it allocates the
+workspace and solution buffers but does not solve until @racket[solver-solve!]
+is called.}
+
+@defproc[(solver-solve! [s scs-solver?]
+                        [#:warm-start warm (or/c #f exact-integer?) #f])
+         scs-result?]{
+Solves (or re-solves) @racket[s] and returns an @racket[scs-result]. By default
+the first call cold-starts and every later call warm-starts from the previous
+iterate; pass @racket[#:warm-start] @racket[0] or @racket[1] to force it.}
+
+@defproc[(solver-update! [s scs-solver?]
+                         [#:b b (or/c (vectorof real?) (listof real?) #f) #f]
+                         [#:c c (or/c (vectorof real?) (listof real?) #f) #f])
+         void?]{
+Replaces the right-hand side @racket[b] and/or the objective @racket[c] in
+place, for a cheap warm-started re-solve. Only @racket[b]/@racket[c] may change;
+@racket[A], @racket[P], and the cone are fixed. An omitted argument keeps its
+current value.}
+
+@defproc[(scs-solver? [x any/c]) boolean?]{
+Returns @racket[#t] if @racket[x] is a solver produced by @racket[make-solver].}
 
 @; ============================================================================
 @section{Contracted FFI layer}
