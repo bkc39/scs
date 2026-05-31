@@ -37,6 +37,7 @@ The native library is the upstream @tt{scs} build (3.2.11), compiled with LAPACK
 so semidefinite cones are available, and shipping both the direct
 (@tt{libscsdir}) and indirect/CG (@tt{libscsindir}) linear-system solvers.
 
+@include-section["start.scrbl"]
 @include-section["guide.scrbl"]
 @include-section["examples.scrbl"]
 @include-section["reference.scrbl"]

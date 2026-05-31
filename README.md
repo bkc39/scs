@@ -56,7 +56,7 @@ render them locally with `raco scribble scs/scribblings/scs.scrbl` or
 ```bash
 nix build              # build, run tests + examples
 nix develop            # dev shell: racket + scs + python(scs) + linters
-racket examples/00-quadratic-program.rkt
+racket scs/examples/test/01-linear-program.rkt
 ```
 
 ## Layout
@@ -66,8 +66,9 @@ racket examples/00-quadratic-program.rkt
 - `scs/foreign/raw.rkt` — direct C FFI bindings to the SCS C API.
 - `scs/core/` — high-level implementation: `matrix`, `cone`, `settings`, `solve`.
 - `scs/private/install-scs-native.rkt` — native-library pre-install hook.
-- `examples/` — numbered runnable examples (each with `module+ main` and
-  `module+ test`).
+- `scs/examples/` — numbered literate (`#lang scribble/lp2`) examples woven
+  into the docs; each `provide`s `run-example`. Companion runners/tests live in
+  `scs/examples/test/`.
 - `flake.nix` — Nix build; uses `nixpkgs#scs` (3.2.11, both solver variants,
   LAPACK).
 
