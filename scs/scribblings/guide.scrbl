@@ -11,7 +11,7 @@
 SCS solves the convex quadratic cone program
 
 @nested[#:style 'inset]{
-  minimize    @racket[(/ 1 2)] xᵀ@bold{P}x + @bold{c}ᵀx @linebreak[]
+  minimize    ½ xᵀ@bold{P}x + @bold{c}ᵀx @linebreak[]
   subject to  @bold{A}x + s = @bold{b}, @bold{s} ∈ @bold{K}
 }
 
@@ -35,10 +35,10 @@ The cone @tt{K} is a Cartesian product of primitive cones. The rows of @tt{A}
 which is also the order of the @racket[make-cone] keywords:
 
 @itemlist[
- @item{@bold{zero} cone --- @racket[#:zero] equality rows (@tt{s} = 0).}
- @item{@bold{positive} orthant --- @racket[#:positive] inequality rows
+ @item{the @deftech{zero cone} --- @racket[#:zero] equality rows (@tt{s} = 0).}
+ @item{the @deftech{positive orthant} --- @racket[#:positive] inequality rows
        (@tt{s} ≥ 0).}
- @item{@bold{box} cone --- @racket[#:box-lower] / @racket[#:box-upper];
+ @item{the @tech{box cone} --- @racket[#:box-lower] / @racket[#:box-upper];
        see @secref["box-cones"].}
  @item{@bold{second-order} (Lorentz) cones --- @racket[#:soc], a list of block
        sizes; each block @tt{(t, u)} satisfies ‖u‖₂ ≤ t.}
@@ -56,7 +56,7 @@ This mirrors the cone ordering documented in the SCS
 
 @subsection[#:tag "box-cones"]{Box cones}
 
-The box cone is @tt{{(t, r) : t·l ≤ r ≤ t·u}} with a leading scale variable
+The @deftech{box cone} is @tt{{(t, r) : t·l ≤ r ≤ t·u}} with a leading scale variable
 @tt{t}. To impose plain bounds @tt{l ≤ y ≤ u}, arrange @tt{A} and @tt{b} so the
 first box row's slack is a constant @tt{1} (a row of zeros in @tt{A} with the
 matching @tt{b} entry equal to @racket[1]) and the remaining rows carry @tt{y}.
@@ -100,6 +100,61 @@ right-hand side @tt{b} and objective @tt{c} are passed to @racket[solve] as
 plain vectors or lists.
 
 @; ----------------------------------------------------------------------------
+@section[#:tag "cookbook"]{Modeling cookbook}
+
+Getting a problem into SCS's standard form @tt{Ax + s = b}, @tt{s ∈ K} comes
+down to a handful of recurring moves. Each is used by one or more of the worked
+@secref["examples"].
+
+@subsection{Laying out @tt{A} in cone-ordered row-blocks}
+
+The rows of @tt{A} (and the entries of @tt{b} and @tt{s}) must appear in the
+@secref["cones"] order: zero rows, then positive, box, second-order,
+semidefinite, exponential, and power. Build @tt{A} as a @emph{stack of
+row-blocks}, one per primitive cone, in that order, and make @racket[make-cone]'s
+keywords describe the same blocks. A slack lands in a given cone exactly when
+@tt{s = b − Ax} restricted to that block satisfies the membership condition; a
+common idiom is an @tt{A = −I} block with @tt{b = 0}, which sets
+@tt{s = x} on those rows so the variables themselves are constrained
+(@secref["ex-soc"], @secref["ex-exp"], @secref["ex-power"]).
+
+@subsection{Bounds and the @tech{absolute-value trick}}
+
+A two-sided bound @tt{l ≤ aᵀx ≤ u} is two positive-orthant rows, @tt{aᵀx ≤ u}
+and @tt{−aᵀx ≤ −l}. The @deftech{absolute-value trick} models @tt{|aᵀx|}:
+introduce an auxiliary @tt{t}, add the two rows @tt{aᵀx − t ≤ 0} and
+@tt{−aᵀx − t ≤ 0} (so @tt{t ≥ |aᵀx|}), and use @tt{t} in the objective. This is
+how L1 penalties become cone programs in @secref["ex-lasso"] and
+@secref["ex-elastic-net"].
+
+@subsection{Norms via the second-order cone}
+
+A Euclidean-norm bound @tt{‖u‖₂ ≤ t} is one second-order cone block over
+@tt{(t, u)} (@secref["ex-soc"]). To @emph{minimize} a norm, bound it by a fresh
+variable @tt{t} with @tt{‖u‖₂ ≤ t} and minimize @tt{t}.
+
+@subsection{The @tech{epigraph trick} for nonlinear objectives}
+
+To minimize a convex function @tt{f(x)} that is not already linear or quadratic,
+minimize a new variable @tt{t} subject to the @deftech{epigraph trick}
+constraint @tt{f(x) ≤ t}, then express that constraint with a cone. For
+@tt{x log x} the epigraph is exponential-cone membership, which is how
+@secref["ex-maxent"] maximizes entropy.
+
+@subsection{Box-cone layout}
+
+The @tech{box cone} carries a leading scale variable. To impose plain bounds
+@tt{l ≤ y ≤ u}, pin that scale to @racket[1] with a constant row (zeros in
+@tt{A}, a @racket[1] in @tt{b}) and put @tt{y} on the remaining rows; see
+@secref["box-cones"] and the worked @secref["ex-mpc"].
+
+@subsection{Symmetric matrices and the svec scaling}
+
+A semidefinite constraint @tt{X ⪰ 0} is one @racket[#:psd] block whose slack is
+the @tt{√2}-scaled lower-triangular vectorization of @tt{X}; see
+@secref["psd-cones"] and @secref["ex-sdp"].
+
+@; ----------------------------------------------------------------------------
 @section[#:tag "guide-settings"]{Settings}
 
 @racket[make-settings] produces a settings value populated with SCS's defaults,
@@ -141,3 +196,42 @@ through the @racketmodname[scs/foreign] layer with
 @racket[scs-init], @racket[scs-update], and @racket[scs-solve] (passing a warm
 flag of @racket[1] to the re-solve). @secref["ex-lasso"] and @secref["ex-mpc"]
 show the pattern.
+
+@subsection[#:tag "troubleshooting"]{Troubleshooting and status}
+
+When @racket[solved?] is false, the exit flag says why, and the result still
+carries useful information:
+
+@itemlist[
+ @item{@bold{Infeasible} (flag @racket[-2]): no @tt{x} satisfies the
+       constraints. SCS returns a @emph{certificate of infeasibility} in
+       @racket[scs-result-y] (a dual ray); @racket[scs-result-x] is not
+       meaningful.}
+ @item{@bold{Unbounded} (flag @racket[-1]): the objective can be driven to
+       @tt{−∞} within the constraints. The certificate is a primal ray in
+       @racket[scs-result-x].}
+ @item{@bold{Inaccurate} (flags @racket[2], @racket[-6], @racket[-7]): SCS hit
+       its iteration or time limit with the residuals only partially converged.
+       The iterate is usually close; loosen @racket[#:eps-abs] /
+       @racket[#:eps-rel] to accept it, or raise @racket[#:max-iters] /
+       @racket[#:time-limit-secs] to push further.}
+ @item{@bold{Indeterminate / failed} (flags @racket[-3] through @racket[-5]):
+       the problem could not be classified, or setup failed.}
+]
+
+A few common modeling mistakes produce a spurious infeasible or unbounded
+result rather than an error:
+
+@itemlist[
+ @item{@bold{Cone-order mismatch.} The rows of @tt{A} must follow the
+       @secref["cones"] order and match @racket[make-cone]'s keyword counts
+       exactly. A miscounted block silently re-interprets later rows.}
+ @item{@bold{A missing box scale row.} The @tech{box cone} needs its leading
+       scale entry pinned (see @secref["box-cones"]); omitting it changes the
+       feasible set.}
+ @item{@bold{Wrong PSD scaling.} Off-diagonal entries of a semidefinite block
+       must be @tt{√2}-scaled (see @secref["psd-cones"]).}
+]
+
+To see SCS's own iteration log while diagnosing, pass
+@racket[(make-settings #:verbose? #t)].

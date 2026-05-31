@@ -93,23 +93,16 @@
             doCheck = true;
             checkPhase = ''
               runHook preCheck
+              # Recursive: covers the package plus the literate examples'
+              # companion harnesses under scs/examples/test/.
               raco test ./scs/
-              raco test \
-                examples/00-quadratic-program.rkt \
-                examples/01-linear-program.rkt \
-                examples/02-second-order-cone.rkt \
-                examples/03-semidefinite.rkt \
-                examples/04-exponential-cone.rkt \
-                examples/05-warm-start-update.rkt \
-                examples/06-indirect-solver.rkt \
-                examples/07-lasso.rkt \
-                examples/08-max-entropy.rkt \
-                examples/09-mpc.rkt
 
               # Render the Scribble docs to catch errors (broken @racket refs,
               # malformed markup).  @for-label is binding-only, so this does not
               # load the native library.  Cross-doc reference warnings are
-              # expected standalone and do not fail the render.
+              # expected standalone and do not fail the render; so are the
+              # lp2 chunk-name index collisions (e.g. <*>, <require>) that arise
+              # from weaving multiple literate example files into one manual.
               raco scribble --htmls --dest "$TMPDIR/scs-doc" scs/scribblings/scs.scrbl
               runHook postCheck
             '';

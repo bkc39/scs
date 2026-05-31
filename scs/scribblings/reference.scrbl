@@ -87,7 +87,34 @@ in the order the rows of @racket[A] must follow; see @secref["cones"].
          scs-settings?]{
 Returns a settings value initialized to SCS's defaults, with the supplied
 keywords overridden. A @racket[#f] override leaves the SCS default in place. See
-the @hyperlink["https://www.cvxgrp.org/scs/api/settings.html"]{settings reference}.}
+the @hyperlink["https://www.cvxgrp.org/scs/api/settings.html"]{settings reference}.
+
+The keywords above cover the most common knobs. SCS's full settings struct has
+more fields; the table below lists them and how to reach each one. Fields not
+yet exposed by @racket[make-settings] can still be set on the struct directly
+through the @racketmodname[scs/foreign] layer, and broadening
+@racket[make-settings] to cover them is a planned follow-up.
+
+@tabular[#:style 'boxed
+         #:column-properties '(left left left)
+         #:row-properties '(bottom-border ())
+ (list (list @bold{SCS setting} @bold{meaning} @bold{in @racket[make-settings]?})
+       (list @tt{normalize}        "rescale data before solving"                 @elem{@racket[#:normalize?]})
+       (list @tt{max_iters}        "iteration cap"                               @elem{@racket[#:max-iters]})
+       (list @tt{eps_abs}          "absolute convergence tolerance"              @elem{@racket[#:eps-abs]})
+       (list @tt{eps_rel}          "relative convergence tolerance"              @elem{@racket[#:eps-rel]})
+       (list @tt{eps_infeas}       "infeasibility tolerance"                     @elem{@racket[#:eps-infeas]})
+       (list @tt{time_limit_secs}  "wall-clock limit"                            @elem{@racket[#:time-limit-secs]})
+       (list @tt{verbose}          "print an iteration log"                      @elem{@racket[#:verbose?]})
+       (list @tt{warm_start}       "start from a supplied iterate"               @elem{@racket[#:warm-start?]})
+       (list @tt{scale}            "initial primal/dual scale factor"            "no (struct only)")
+       (list @tt{adaptive_scale}   "adapt @tt{scale} during the solve"           "no (struct only)")
+       (list @tt{rho_x}            "primal scaling of the @tt{x} variable"       "no (struct only)")
+       (list @tt{alpha}            "over-relaxation parameter"                   "no (struct only)")
+       (list @tt{acceleration_lookback}  "Anderson-acceleration memory"          "no (struct only)")
+       (list @tt{acceleration_interval} "iterations between acceleration steps"  "no (struct only)")
+       (list @tt{write_data_filename}   "dump the problem to a file"             "no (struct only)")
+       (list @tt{log_csv_filename}      "log per-iteration data to CSV"          "no (struct only)"))]}
 
 @subsection[#:tag "ref-solving"]{Solving}
 
