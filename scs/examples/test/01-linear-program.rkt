@@ -10,8 +10,9 @@
 
 (module+ main
   (define r (run-example))
-  (printf "status: ~a\n" (scs-result-status r))
-  (printf "x:      ~a\n" (scs-result-x r)))
+  ;; scs-result prints a readable one-line summary (status + objective + x)
+  (displayln r)
+  (printf "objective: ~a\n" (result-objective r)))
 
 (module+ test
   (require rackunit)

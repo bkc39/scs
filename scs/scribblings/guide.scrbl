@@ -85,6 +85,15 @@ length is @tt{k(k+1)/2}. So a 2×2 matrix @tt{[[a b] [b c]]} is represented by
              0 1)
 ]
 
+It also accepts a single list of rows, inferring the dimensions, which reads
+like a 2D literal:
+
+@racketblock[
+(scs:matrix '((-1 1)
+              ( 1 0)
+              ( 0 1)))
+]
+
 @racket[scs:sparse-matrix] builds one from explicit @tt{(row col value)} triples,
 which is convenient for a quadratic @tt{P} (supply only the upper triangle):
 
@@ -95,9 +104,17 @@ which is convenient for a quadratic @tt{P} (supply only the upper triangle):
                    '(1 1 2))
 ]
 
-Both return a CSC matrix suitable for @racket[#:A] or @racket[#:P]. The
+For data already in a @tt{scipy}-style coordinate form, @racket[scs:coo-matrix]
+takes three parallel sequences @tt{(rows cols vals)} (vectors or lists), matching
+@tt{scipy.sparse.coo_matrix((data, (row, col)))}:
+
+@racketblock[
+(scs:coo-matrix 2 2 '(0 0 1) '(0 1 1) '(3 -1 2))
+]
+
+All three return a CSC matrix suitable for @racket[#:A] or @racket[#:P]. The
 right-hand side @tt{b} and objective @tt{c} are passed to @racket[solve] as
-plain vectors or lists.
+plain vectors @emph{or} lists.
 
 @; ----------------------------------------------------------------------------
 @section[#:tag "cookbook"]{Modeling cookbook}
