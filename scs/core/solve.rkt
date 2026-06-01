@@ -1,56 +1,12 @@
 #lang racket/base
 
-;; High-level `solve` and the `scs-result` struct, documented in the scs
-;; Scribble reference.  The solver workspace is GC-reclaimed.
+;; High-level one-shot `solve`, documented in the scs Scribble reference.  It is
+;; a thin wrapper over the solver object in solver.rkt: build a solver, solve
+;; once, return the scs-result.  The solver workspace is GC-reclaimed.
 
-(require ffi/unsafe
-         "../foreign/raw/library.rkt"
-         "../foreign/raw/retain.rkt"
-         "../foreign/raw/solver.rkt"
-         "../foreign/raw/structs.rkt"
-         "matrix.rkt"
-         "settings.rkt")
+(require "solver.rkt")
 
-(provide (struct-out scs-result)
-         solve
-         solved?)
-
-(struct scs-result
-  (exit-flag status status-val x y s pobj dobj gap iter solve-time setup-time)
-  #:transparent)
-
-;; SCS returns 1 (SCS_SOLVED) on success.
-(define (solved? r)
-  (= (scs-result-exit-flag r) 1))
-
-(define info-str-type (_array _byte 128))
-
-;; Read a NUL-terminated C char[128] field into a Racket string.
-(define (status-array->string arr)
-  (define bs
-    (let loop ([i 0] [acc '()])
-      (cond
-        [(>= i 128) (reverse acc)]
-        [else
-         (define b (array-ref arr i))
-         (if (zero? b) (reverse acc) (loop (add1 i) (cons b acc)))])))
-  (bytes->string/utf-8 (list->bytes bs)))
-
-;; ScsInfo's status / lin_sys_solver are char[128]; new-scs-info cannot default
-;; an array field, so seed them with zeroed buffers SCS will overwrite.
-(define (make-info)
-  (define status-ptr (malloc 'atomic-interior info-str-type))
-  (define lin-ptr (malloc 'atomic-interior info-str-type))
-  (new-scs-info #:status (ptr-ref status-ptr info-str-type 0)
-                #:lin_sys_solver (ptr-ref lin-ptr info-str-type 0)))
-
-;; x has length n (variables); y and s have length m (constraints).  The
-;; solution struct retains its arrays so they outlive it.
-(define (make-solution m n)
-  (define x (malloc 'atomic-interior _scs-float n))
-  (define y (malloc 'atomic-interior _scs-float m))
-  (define s (malloc 'atomic-interior _scs-float m))
-  (retain! (make-scs-solution x y s) x y s))
+(provide solve)
 
 ;; Solve minimize (1/2) x'Px + c'x s.t. Ax + s = b, s in cone.  See the scs
 ;; Scribble reference for the keyword arguments and result fields.
@@ -62,29 +18,7 @@
                #:settings [settings #f]
                #:indirect? [indirect? #f]
                #:warm-start [warm 0])
-  (define m (scs-matrix-m A))   ; rows of A: number of constraints
-  (define n (scs-matrix-n A))   ; cols of A: number of variables
-  (define b-ptr (vector->float-ptr b))
-  (define c-ptr (vector->float-ptr c))
-  ;; retain A, P, and the b/c buffers for the lifetime of the data struct
-  (define data (retain! (make-scs-data m n A P b-ptr c-ptr) A P b-ptr c-ptr))
-  (define stgs (or settings (make-settings)))
-  (define init (if indirect? scs-init/indirect scs-init))
-  (define run (if indirect? scs-solve/indirect scs-solve))
-  (define work (init data cone stgs))
-  (define sol (make-solution m n))
-  (define info (make-info))
-  (define flag (run work sol info warm))
-  (scs-result
-   flag
-   (status-array->string (scs-info-status info))
-   (scs-info-status_val info)
-   (float-ptr->vector (scs-solution-x sol) n)
-   (float-ptr->vector (scs-solution-y sol) m)
-   (float-ptr->vector (scs-solution-s sol) m)
-   (scs-info-pobj info)
-   (scs-info-dobj info)
-   (scs-info-gap info)
-   (scs-info-iter info)
-   (scs-info-solve_time info)
-   (scs-info-setup_time info)))
+  (solver-solve!
+   (make-solver #:A A #:b b #:c c #:cone cone
+                #:P P #:settings settings #:indirect? indirect?)
+   #:warm-start warm))

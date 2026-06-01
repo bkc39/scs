@@ -188,14 +188,27 @@ By default @racket[solve] uses the direct linear-system solver. Pass
 @racket[#:indirect? #t] to use the indirect (conjugate-gradient) solver, which
 can scale better on very large sparse problems.
 
-@subsection{Warm starting and re-solving}
+@subsection[#:tag "warm-starting"]{Warm starting and re-solving}
 
-When a sequence of problems differs only in @tt{b} or @tt{c}, you can keep one
-solver workspace and update it instead of rebuilding from scratch. This is done
-through the @racketmodname[scs/foreign] layer with
-@racket[scs-init], @racket[scs-update], and @racket[scs-solve] (passing a warm
-flag of @racket[1] to the re-solve). @secref["ex-lasso"] and @secref["ex-mpc"]
-show the pattern.
+When a sequence of problems differs only in @tt{b} or @tt{c}, build a solver
+once with @racket[make-solver] and re-solve it instead of rebuilding from
+scratch. @racket[solver-solve!] returns an @racket[scs-result]; it cold-starts
+the first time and warm-starts (reusing the previous iterate) on every call
+after that. @racket[solver-update!] swaps in a new @tt{b} and/or @tt{c} (the
+matrices and cone are fixed):
+
+@racketblock[
+(define s (make-solver #:A A #:b b #:c c #:cone cone))
+(solver-solve! s)              (code:comment "cold start")
+(solver-update! s #:b b2)      (code:comment "only b changes")
+(solver-solve! s)              (code:comment "warm-started re-solve")
+]
+
+@racket[solve] is just @racket[make-solver] followed by a single
+@racket[solver-solve!]. @secref["ex-warm-start"], @secref["ex-lasso"], and
+@secref["ex-mpc"] show the pattern. For full manual control over the workspace
+and solution buffers, the @racketmodname[scs/foreign] layer exposes the
+underlying @racket[scs-init] / @racket[scs-update] / @racket[scs-solve].
 
 @subsection[#:tag "troubleshooting"]{Troubleshooting and status}
 
