@@ -9,6 +9,8 @@
 ;; the solver alive keeps the workspace and the retained data/buffers alive.
 
 (require ffi/unsafe
+         racket/format
+         racket/string
          "../foreign/raw/library.rkt"
          "../foreign/raw/retain.rkt"
          "../foreign/raw/solver.rkt"
@@ -18,18 +20,66 @@
 
 (provide (struct-out scs-result)
          solved?
+         infeasible?
+         unbounded?
+         result-objective
+         result-status
          scs-solver?
          make-solver
          solver-solve!
          solver-update!)
 
+;; SCS exit flags (subset; see SCS's glbopts.h).  scs-result-exit-flag carries
+;; one of these.
+(define SCS-SOLVED 1)
+(define SCS-UNBOUNDED -1)
+(define SCS-INFEASIBLE -2)
+
+;; At most this many entries of x are shown in a result's one-line summary.
+(define max-x-shown 6)
+
+;; A one-line, human-readable summary, e.g.
+;;   #<scs-result solved pobj=1.0000 iter=60 x=#(1.0 1.0)>
+(define (summarize-x x)
+  (define n (vector-length x))
+  (cond
+    [(<= n max-x-shown)
+     (format "#(~a)" (string-join (map ~a (vector->list x)) " "))]
+    [else
+     (define shown
+       (for/list ([i (in-range max-x-shown)]) (~a (vector-ref x i))))
+     (format "#(~a ... ~a more)"
+             (string-join shown " ") (- n max-x-shown))]))
+
 (struct scs-result
   (exit-flag status status-val x y s pobj dobj gap iter solve-time setup-time)
-  #:transparent)
+  #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc r port _mode)
+     (fprintf port "#<scs-result ~a pobj=~a iter=~a x=~a>"
+              (scs-result-status r)
+              (~r (scs-result-pobj r) #:precision 4)
+              (scs-result-iter r)
+              (summarize-x (scs-result-x r))))])
 
 ;; SCS returns 1 (SCS_SOLVED) on success.
 (define (solved? r)
-  (= (scs-result-exit-flag r) 1))
+  (= (scs-result-exit-flag r) SCS-SOLVED))
+
+;; The problem was proven primal-infeasible / unbounded.
+(define (infeasible? r)
+  (= (scs-result-exit-flag r) SCS-INFEASIBLE))
+
+(define (unbounded? r)
+  (= (scs-result-exit-flag r) SCS-UNBOUNDED))
+
+;; The primal objective value (cvxpy's prob.value); an alias for readability.
+(define (result-objective r)
+  (scs-result-pobj r))
+
+;; The human-readable status string, e.g. "solved".
+(define (result-status r)
+  (scs-result-status r))
 
 ;; A live solver.  `run`/`upd` are the direct or indirect C entry points; `data`
 ;; (and through it A, P, and the b/c buffers) is retained so it outlives the
@@ -153,8 +203,18 @@
   ;; cold solve -> x = (1, 1)
   (define r1 (solver-solve! s))
   (check-true (solved? r1))
+  (check-false (infeasible? r1))
+  (check-false (unbounded? r1))
   (check-= (vector-ref (scs-result-x r1) 0) 1.0 1e-6)
   (check-= (vector-ref (scs-result-x r1) 1) 1.0 1e-6)
+
+  ;; ergonomics: aliases and a readable one-line summary
+  (check-equal? (result-objective r1) (scs-result-pobj r1))
+  (check-equal? (result-status r1) (scs-result-status r1))
+  (let ([printed (format "~a" r1)])
+    (check-regexp-match #rx"scs-result" printed)
+    (check-regexp-match (regexp (regexp-quote (scs-result-status r1))) printed)
+    (check-regexp-match #rx"pobj=" printed))
 
   ;; update only b, warm re-solve -> x = (2, 3)
   (solver-update! s #:b #(2.0 3.0 0.0 0.0))

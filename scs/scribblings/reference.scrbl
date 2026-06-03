@@ -24,13 +24,24 @@ The @racketmodname[scs] module re-exports the matrix builders under the
 
 @subsection[#:tag "ref-matrices"]{Matrices and vectors}
 
-@defproc[(scs:matrix [nrow exact-nonnegative-integer?]
-                     [ncol exact-nonnegative-integer?]
-                     [val real?] ...)
-         any/c]{
-Builds an @racket[nrow]×@racket[ncol] CSC matrix from a dense, row-major
-sequence of @racket[val]s (there must be @racket[(* nrow ncol)] of them). Exact
-zeros are dropped from the sparse representation.}
+@deftogether[(@defproc[(scs:matrix [nrow exact-nonnegative-integer?]
+                                   [ncol exact-nonnegative-integer?]
+                                   [val real?] ...)
+                       any/c]
+              @defproc[#:link-target? #f
+                       (scs:matrix [rows (listof (listof real?))])
+                       any/c])]{
+Builds a CSC matrix from a dense layout. The first form takes the dimensions
+followed by a row-major sequence of @racket[val]s (there must be
+@racket[(* nrow ncol)] of them). The second form takes a single list of rows
+and infers the dimensions, reading like a 2D literal:
+
+@racketblock[
+(scs:matrix '((-1 1) (1 0) (0 1)))
+]
+
+Both produce the same matrix; exact zeros are dropped from the sparse
+representation.}
 
 @defproc[(scs:sparse-matrix [nrow exact-nonnegative-integer?]
                             [ncol exact-nonnegative-integer?]
@@ -41,6 +52,20 @@ zeros are dropped from the sparse representation.}
 Builds an @racket[nrow]×@racket[ncol] CSC matrix from explicit
 @racket[(list row col value)] triples. For a quadratic objective @racket[P],
 supply only the upper-triangular entries.}
+
+@defproc[(scs:coo-matrix [nrow exact-nonnegative-integer?]
+                         [ncol exact-nonnegative-integer?]
+                         [rows (or/c (vectorof exact-nonnegative-integer?)
+                                     (listof exact-nonnegative-integer?))]
+                         [cols (or/c (vectorof exact-nonnegative-integer?)
+                                     (listof exact-nonnegative-integer?))]
+                         [vals (or/c (vectorof real?) (listof real?))])
+         any/c]{
+Builds an @racket[nrow]×@racket[ncol] CSC matrix from three parallel sequences
+of equal length, matching @tt{scipy.sparse.coo_matrix((data, (row, col)))}: the
+@racket[k]th non-zero is @racket[(vals k)] at position
+@racket[(rows k)], @racket[(cols k)]. @racket[rows], @racket[cols], and
+@racket[vals] may each be a vector or a list.}
 
 @defproc[(scs:matrix-ref [m any/c]
                          [i exact-nonnegative-integer?]
@@ -155,10 +180,22 @@ The result of a @racket[solve]. @racket[x], @racket[y], and @racket[s] are the
 primal, dual, and slack vectors; @racket[status] is the status string and
 @racket[status-val]/@racket[exit-flag] the integer exit code (see the
 @hyperlink["https://www.cvxgrp.org/scs/api/exit_flags.html"]{exit-flag
-reference}).}
+reference}). An @racket[scs-result] prints as a readable one-line summary of its
+status, objective, and (possibly truncated) @racket[x], e.g.
+@tt{#<scs-result solved pobj=1.0000 iter=60 x=#(1.0 1.0)>}.}
 
-@defproc[(solved? [r scs-result?]) boolean?]{
-Returns @racket[#t] when @racket[r] solved to tolerance (exit flag @racket[1]).}
+@deftogether[(@defproc[(solved? [r scs-result?]) boolean?]
+              @defproc[(infeasible? [r scs-result?]) boolean?]
+              @defproc[(unbounded? [r scs-result?]) boolean?])]{
+Status predicates on @racket[r]'s @racket[exit-flag]: solved to tolerance (flag
+@racket[1]), proven primal-infeasible (@racket[-2]), or proven unbounded
+(@racket[-1]).}
+
+@deftogether[(@defproc[(result-objective [r scs-result?]) real?]
+              @defproc[(result-status [r scs-result?]) string?])]{
+Convenience accessors: @racket[result-objective] is the primal objective
+@racket[(scs-result-pobj r)] (cvxpy's @tt{prob.value}) and @racket[result-status]
+is the status string @racket[(scs-result-status r)].}
 
 @defproc[(scs-version) string?]{
 The version string of the underlying SCS C library.}

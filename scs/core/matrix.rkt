@@ -17,6 +17,7 @@
          "../foreign/raw/structs.rkt")
 
 (provide matrix
+         coo-matrix
          sparse-matrix
          matrix-alloc
          matrix-ref
@@ -54,11 +55,55 @@
     [(_ _)
      (error "not a triple")]))
 
-;; Build an n x m matrix from a dense row-major sequence of values.
-(define (matrix n m . xs)
-  (apply sparse-matrix
-         (append (list n m)
-                 (list->sparse-triple-list m xs))))
+;; Build a matrix from a dense layout.  Two backward-compatible forms:
+;;   (matrix nrow ncol v ...)            -- a flat row-major sequence of values
+;;   (matrix '((v ...) (v ...) ...))     -- a list of rows; dims are inferred
+;; The nested-list form reads like a literal 2D array (scipy / nested lists).
+(define (matrix . args)
+  (match args
+    [(list (and rows (list (? list?) ...)))
+     (rows->matrix rows)]
+    [(list-rest n m xs)
+     (flat-matrix n m xs)]
+    [_
+     (error 'matrix
+            "expected (matrix rows-list) or (matrix nrow ncol value ...)")]))
+
+;; Flat row-major form: nrow x ncol from a list of row-major values.
+(define (flat-matrix n m xs)
+  (apply sparse-matrix n m (list->sparse-triple-list m xs)))
+
+;; Nested-list form: infer dims from a non-empty list of equal-length rows.
+(define (rows->matrix rows)
+  (when (null? rows)
+    (error 'matrix "dense matrix needs at least one row"))
+  (define ncol (length (car rows)))
+  (for ([row (in-list rows)]
+        [r (in-naturals)])
+    (unless (= (length row) ncol)
+      (error 'matrix
+             "ragged dense matrix: row ~a has ~a entries, expected ~a"
+             r (length row) ncol)))
+  (flat-matrix (length rows) ncol (apply append rows)))
+
+;; Coerce a vector or list of reals to a list.
+(define (seq->list s)
+  (cond [(vector? s) (vector->list s)]
+        [(list? s) s]
+        [else (error 'coo-matrix "expected a vector or list, got ~e" s)]))
+
+;; scipy-style COO constructor: three parallel sequences (rows, cols, vals),
+;; matching scipy.sparse.coo_matrix((data, (row, col))) ordering.  Delegates to
+;; sparse-matrix, which assembles the CSC representation.
+(define (coo-matrix nrow ncol rows cols vals)
+  (define rs (seq->list rows))
+  (define cs (seq->list cols))
+  (define vs (seq->list vals))
+  (unless (= (length rs) (length cs) (length vs))
+    (error 'coo-matrix
+           "rows, cols, vals must have equal length; got ~a, ~a, ~a"
+           (length rs) (length cs) (length vs)))
+  (apply sparse-matrix nrow ncol (map list rs cs vs)))
 
 ;; Build an n x m matrix from explicit (row col value) triples.  The column
 ;; pointer array p must be filled for every column (including empty ones), so we
@@ -132,3 +177,30 @@
 (define (float-ptr->vector ptr len)
   (for/vector #:length len ([idx (in-range len)])
     (ptr-ref ptr _scs-float idx)))
+
+(module+ test
+  (require rackunit)
+
+  ;; the CSC triple of a matrix, for comparing constructors
+  (define (csc mat)
+    (list (scs-matrix-m mat) (scs-matrix-n mat)
+          (matrix-x->vector mat) (matrix-i->vector mat)
+          (matrix-p->vector mat)))
+
+  ;; dense nested-list form == flat row-major form
+  (check-equal? (csc (matrix '((-1 1) (1 0) (0 1))))
+                (csc (matrix 3 2  -1 1  1 0  0 1)))
+
+  ;; ragged rows are rejected
+  (check-exn #rx"ragged" (lambda () (matrix '((1 2) (3)))))
+
+  ;; coo (parallel sequences) == explicit triples; vectors and lists both work
+  (define triples (sparse-matrix 2 2 '(0 0 3) '(0 1 -1) '(1 1 2)))
+  (check-equal? (csc (coo-matrix 2 2 '(0 0 1) '(0 1 1) '(3 -1 2)))
+                (csc triples))
+  (check-equal? (csc (coo-matrix 2 2 #(0 0 1) #(0 1 1) #(3 -1 2)))
+                (csc triples))
+
+  ;; mismatched parallel lengths are rejected
+  (check-exn #rx"equal length"
+             (lambda () (coo-matrix 2 2 '(0 1) '(0) '(3 -1)))))
