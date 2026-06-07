@@ -32,6 +32,9 @@ find scs/native-libs -maxdepth 1 -type f -name 'lib*' -delete 2>/dev/null || tru
 echo "--- installing from candidates ---"
 "$RACO" pkg install --name scs ./scs
 
+echo "--- raco setup --check-pkg-deps scs (mirrors catalog dependency check) ---"
+"$RACO" setup --check-pkg-deps --pkgs scs
+
 echo "--- raco test scs/ (package + example companions) ---"
 "$RACO" test scs/
 
